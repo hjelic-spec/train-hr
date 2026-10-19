@@ -225,35 +225,6 @@ const Timing = {
 };
 
 const BIG = new Set(["LEGS", "BACK", "CHEST"]);
-function buildPlan(daysPerWeek, selected, capacity) {
-  const days = Math.min(6, Math.max(1, daysPerWeek)), cap = Math.max(1, capacity);
-  const byGroup = Object.fromEntries(GROUPS.map(([g]) => [g, selected.filter(e => e.group === g)]));
-  const workouts = [];
-  for (let d = 0; d < days; d++) {
-    const wanted = GROUPS.flatMap(([g]) => {
-      const list = byGroup[g];
-      if (!list.length) return [];
-      if (list.length <= days) return [list[d % list.length]];
-      return list.filter((_, i) => i % days === d);
-    });
-    let chosen;
-    if (wanted.length <= cap) chosen = wanted;
-    else {
-      const big = wanted.filter(e => BIG.has(e.group));
-      if (big.length >= cap) chosen = big.slice(0, cap);
-      else {
-        const small = wanted.filter(e => !BIG.has(e.group)), free = cap - big.length;
-        const rotated = small.map((_, i) => small[(i + d * free) % small.length]);
-        const keep = new Set(rotated.slice(0, free));
-        chosen = wanted.filter(e => BIG.has(e.group) || keep.has(e));
-      }
-    }
-    workouts.push({ name: "Trening " + String.fromCharCode(65 + d), exerciseIds: chosen.map(e => e.id) });
-  }
-  const used = new Set(workouts.flatMap(w => w.exerciseIds));
-  return { workouts, omitted: selected.filter(e => !used.has(e.id)) };
-}
-
 // ===== Tjedni raspored s miješanjem (samo u pregledu; prenosi se u Android nakon potvrde) =====
 // Dani u tjednu u odnosu na početni datum: razmak između treninga ≥ 1 dan gdje god je moguće.
 const DAY_OFFSETS = { 1: [0], 2: [0, 3], 3: [0, 2, 4], 4: [0, 1, 3, 4], 5: [0, 1, 2, 4, 5] };
@@ -266,15 +237,16 @@ function rng(seed) { // mulberry32 – ponovljiv slučajni niz za isti tjedan
 }
 function shuffle(list, r) { const x = list.slice(); for (let i = x.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [x[i], x[j]] = [x[j], x[i]]; } return x; }
 
+/** Koliko puta tjedno dolazi stalna vježba: u najmanje 2 treninga (ili u svaki, ako ih je manje). */
+const pinnedPerWeek = (days) => Math.min(days, 2);
+
 /**
  * Raspored za jedan tjedan: svaki tjedan (i na „Promiješaj”) drugačiji izbor i redoslijed vježbi,
  * ali uvijek iz odabranih vježbi, najviše [capacity] po treningu (stane u trajanje).
- * Pravila: velike skupine (noge, leđa, prsa) u svakom treningu kad ima mjesta; ostale skupine
- * izmjenjuju se po danima; svaka skupina kruži kroz sve svoje vježbe; ista vježba ne dolazi dva
- * treninga zaredom ako postoji zamjena.
+ * Pravila: stalne vježbe u [pinnedPerWeek] treninga; velike skupine (noge, leđa, prsa) u svakom
+ * treningu kad ima mjesta; ostale skupine se izmjenjuju; svaka skupina kruži kroz sve svoje vježbe;
+ * ista vježba ne dolazi dva treninga zaredom ako postoji zamjena.
  */
-/** Koliko puta tjedno dolazi stalna vježba: u najmanje 2 treninga (ili u svaki, ako ih je manje). */
-const pinnedPerWeek = (days) => Math.min(days, 2);
 
 function weekPlan(selected, daysPerWeek, capacity, seed, pinnedIds = []) {
   const days = Math.min(5, Math.max(1, daysPerWeek)), cap = Math.max(1, capacity), r = rng(seed);
@@ -601,7 +573,8 @@ async function keepAwake(on) {
   try { if (on && !wakeLock && navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); if (!on && wakeLock) { await wakeLock.release(); wakeLock = null; } } catch (e) { wakeLock = null; }
 }
 
-function toast(msg) { ui.toast = msg; render(); setTimeout(() => { ui.toast = null; render(); }, 2200); }
+let toastTimer = null;
+function toast(msg) { ui.toast = msg; render(); clearTimeout(toastTimer); toastTimer = setTimeout(() => { ui.toast = null; render(); }, 2200); }
 function chips(name, options, selected, label) {
   return `<div class="chips" role="group">${options.map(o => `<button class="chip" data-chip="${name}" data-value="${esc(o)}" aria-pressed="${String(o) === String(selected)}">${esc(label(o))}</button>`).join("")}</div>`;
 }
@@ -891,21 +864,23 @@ function analysisView() {
 function weeksAnalysis() {
   const t = today(), all = state.sessions.map(sessionStats);
   const tot = all.reduce((a, x) => ({ kg: a.kg + x.kg, kcal: a.kcal + x.kcal, min: a.min + x.min, sets: a.sets + x.sets }), { kg: 0, kcal: 0, min: 0, sets: 0 });
-  const maxW = Math.max(0, weekOf(t), ...state.sessions.map(s => weekOf(s.plannedDay ?? s.epochDay)));
+  const sw = state.sessions.map(s => weekOf(s.plannedDay ?? s.epochDay));
+  const maxW = Math.max(0, weekOf(t), ...sw), minW = Math.min(0, ...sw);
   const weeks = [];
-  for (let w = 0; w <= maxW; w++) {
+  for (let w = minW; w <= maxW; w++) {
     const ss = state.sessions.filter(s => weekOf(s.plannedDay ?? s.epochDay) === w).sort((a, b) => a.epochDay - b.epochDay);
     // Planirani dani do danas; današnji se broji tek kad je odrađen.
     const planned = Array.from({ length: state.daysPerWeek }, (_, k) => k).filter(k => inProgram(w, k) && (dayDate(w, k) < t || sessionFor(w, k))).length;
     const st = ss.map(sessionStats), sum = st.reduce((a, x) => ({ kg: a.kg + x.kg, kcal: a.kcal + x.kcal, min: a.min + x.min, sets: a.sets + x.sets }), { kg: 0, kcal: 0, min: 0, sets: 0 });
+    if (w < 0 && !ss.length) continue; // prije početka programa prikazuju se samo tjedni s treninzima
     weeks.push({ w, ss, st, sum, planned });
   }
   const shown = weeks.slice(-8);
   return `<div class="kpis"><div><b>${state.sessions.length}</b><span>treninga</span></div><div><b>${fmtInt(tot.kg)}</b><span>kg ukupno</span></div>
       <div><b>${(Math.round(tot.min / 6) / 10).toLocaleString("hr-HR")}</b><span>sati</span></div><div><b>≈${fmtInt(tot.kcal)}</b><span>kcal</span></div></div>
-    <section class="card"><h3>Podignuti kilogrami po tjednu</h3>${barChart(shown.map(x => ["T" + (x.w + 1), x.sum.kg]))}</section>
+    <section class="card"><h3>Podignuti kilogrami po tjednu</h3>${barChart(shown.map(x => [x.w < 0 ? "–" : "T" + (x.w + 1), x.sum.kg]))}</section>
     ${weeks.slice().reverse().map(x => `<section class="card">
-      <div class="ex-line"><h3>Tjedan ${x.w + 1}</h3><span class="muted">${fmtShort(state.startDay + 7 * x.w)} – ${fmtShort(state.startDay + 7 * x.w + 6)}</span></div>
+      <div class="ex-line"><h3>${x.w < 0 ? "Prije programa" : "Tjedan " + (x.w + 1)}</h3><span class="muted">${fmtShort(state.startDay + 7 * x.w)} – ${fmtShort(state.startDay + 7 * x.w + 6)}</span></div>
       <p>${x.ss.length}${x.planned ? " od " + x.planned : ""} treninga · ${x.sum.sets} serija · <strong>${fmtInt(x.sum.kg)} kg</strong> · ${x.sum.min} min · ≈${fmtInt(x.sum.kcal)} kcal</p>
       ${x.ss.map((s, i) => `<button class="ov-row" data-act="openSessionFromAnalysis" data-id="${s.id}"><span>${fmtShort(s.epochDay)} · ${esc(s.workoutName.replace(/^Tjedan \d+ · /, ""))}</span>
         <span class="muted">${fmtInt(x.st[i].kg)} kg · ≈${x.st[i].kcal} kcal</span></button>`).join("")}
@@ -1032,12 +1007,17 @@ document.addEventListener("click", (ev) => {
     weekNext() { const lw = lastWeek(); ui.week = Math.min((ui.week ?? Math.max(0, weekOf(today()))) + 1, lw ?? Infinity); render(); },
     reshuffle() { const w = Number(b.dataset.w); state.salts[w] = (state.salts[w] || 0) + 1; persist(); toast("Treninzi su promiješani."); },
     start() {
-      const w = Number(b.dataset.w), k = Number(b.dataset.k), ids = planForWeek(w).days[k];
+      const w = Number(b.dataset.w), k = Number(b.dataset.k), ids = (planForWeek(w).days[k] || []).filter(id => cat().get(id));
+      if (!ids.length) { toast("Ovaj trening nema vježbi – odaberite vježbe u postavkama."); return; }
       ui.active = { name: `Tjedan ${w + 1} · Trening ${letter(k)}`, plannedDay: dayDate(w, k), startedAt: Date.now(),
         entries: ids.map(id => ({ exerciseId: id, sets: [] })), order: ids.map((_, n) => n), pos: 0, view: "exercise", timer: null, pending: null };
       keepAwake(true); render();
     },
-    startSet() { beepPrime(); a.timer = { kind: "WORK", entry: i, startedAt: Date.now() }; a.pending = null; render(); },
+    startSet() {
+      // Neupisana serija druge vježbe: vrati korisnika na nju umjesto da se izmjereno vrijeme izgubi.
+      if (a.pending && a.pending.entry !== i) { a.pos = a.order.indexOf(a.pending.entry); toast("Prvo upišite rezultat prethodne serije."); return; }
+      beepPrime(); a.timer = { kind: "WORK", entry: i, startedAt: Date.now() }; a.pending = null; render();
+    },
     endSet() {
       const t = a.timer, now = Date.now();
       a.pending = { entry: t.entry, workSeconds: Math.floor((now - t.startedAt) / 1000) };
@@ -1057,7 +1037,7 @@ document.addEventListener("click", (ev) => {
       if (a.entries[i].sets.length === SETS) { const np = nextUndone(a); if (np == null) a.view = "summary"; else a.pos = np; }
       render();
     },
-    undoSet() { a.entries[i].sets.pop(); a.pending = null; render(); },
+    undoSet() { a.entries[i].sets.pop(); if (a.pending && a.pending.entry === i) a.pending = null; render(); },
     stepW() { const el = $("#w-" + i), cur = parseFloat((el.value || "0").replace(",", ".")); el.value = kg(Math.max(0, Math.round(((isNaN(cur) ? 0 : cur) + Number(b.dataset.d)) * 100) / 100)); },
     goNext() { const np = nextUndone(a); if (np == null) a.view = "summary"; else a.pos = np; render(); },
     goPrev() { a.pos = Math.max(0, a.pos - 1); render(); },
