@@ -4,7 +4,32 @@ Android aplikacija za personalizirani trening snage za osobe 50+, rad u teretani
 ograničenim brojem sprava (bučice, trap bar, …), progresivno opterećenje, ciljevi,
 analiza napretka i prilagodba sportu (veteransko veslanje, trčanje, biciklizam, opće).
 
-> Status: **NACRT — čeka pregled.** Ništa se ne implementira dok plan nije potvrđen.
+> Status: **NACRT v2 — uključene odluke korisnika, čeka konačnu potvrdu.**
+
+## 0. Donesene odluke (19. 10. 2026.)
+
+| Tema | Odluka | Posljedica za plan |
+|---|---|---|
+| Jezik | Samo hrvatski | Svi tekstovi u `strings.xml` (HR); struktura ostaje spremna za prijevod, ali ga ne radimo. |
+| Android | 14 | `minSdk 34` — pojednostavljuje Health Connect (dio sustava od Androida 14) i Garmin → HC sinkronizaciju. |
+| Mreža | Potpuno offline | Nema backenda, nema AI-komentara u oblaku; "trenerska" analiza isključivo po pravilima. Aplikacija ne traži dozvolu `INTERNET`. |
+| Korisnici | Vi + odabrani korisnici | Distribucija potpisanim APK-om (ručna instalacija) ili Google Play *zatvoreno testiranje*. Svaki korisnik ima podatke samo na svom telefonu; backup = izvoz/uvoz datoteke. |
+| Oprema | Bučice 8–40 kg, lat mašina, privlak sajle (sjedeće veslanje), šipka s pločama (sve težine), trap bar | Biblioteka vježbi i progresija grade se oko ove opreme (vidi 3.1). |
+| Odabir vježbi | Korisnik može **ručno** birati vježbe | Novi način rada "Moj plan" (vidi 3.2a). |
+
+### Kritičke napomene uz odluke
+- **Bučice počinju od 8 kg.** Za dio vježbi (odručenje u stranu, potisak iznad glave, rotacije
+  ramena) to je za početnike 50+ često previše. Aplikacija će za takve vježbe nuditi zamjenu
+  (sajla, šipka bez utega, vlastita težina) umjesto da forsira 8 kg.
+- **Korak bučica.** Progresija mora znati stvarne dostupne težine (npr. 8, 10, 12 … ili
+  8, 9, 10 …). Skok s 8 na 10 kg je +25 % — prevelik za mnoge vježbe; tada aplikacija prvo
+  povećava ponavljanja/serije, a tek onda težinu.
+- **Offline + više korisnika** znači da nema dijeljenja ni usporedbe među korisnicima i nema
+  automatskog backupa — gubitak telefona = gubitak podataka ako korisnik nije izvezao backup.
+  Predlažem podsjetnik na izvoz jednom mjesečno.
+- **Health Connect bez Google Playa:** treba provjeriti mogu li ručno instalirane (sideload)
+  aplikacije dobiti HC dozvole bez Play deklaracije. Provjerit ću u dokumentaciji prije faze 4;
+  ako ne mogu, distribucija ide preko Play zatvorenog testiranja.
 
 ---
 
@@ -12,7 +37,7 @@ analiza napretka i prilagodba sportu (veteransko veslanje, trčanje, biciklizam,
 
 | Zahtjev | Procjena | Prijedlog |
 |---|---|---|
-| "Puna analiza profesionalnog trenera" | Aplikacija ne može zamijeniti trenera niti procijeniti tehniku izvođenja. | Pravila temeljena na smjernicama (ACSM) + jasni izvještaji. Opcionalno kasnije: AI-komentar (zahtijeva internet i slanje podataka u oblak). |
+| "Puna analiza profesionalnog trenera" | Aplikacija ne može zamijeniti trenera niti procijeniti tehniku izvođenja. | Pravila temeljena na smjernicama (ACSM) + jasni izvještaji, svaka preporuka s obrazloženjem. Bez AI-komentara (offline). |
 | Direktna veza na Garmin | Garmin Connect Developer Program namijenjen je odobrenim **poslovnim** subjektima; prema izvještajima, prijave za nove pristupe trenutno su pauzirane. Za privatnu aplikaciju nije realno. | Koristiti **Health Connect**: Garmin Connect od 2025. službeno šalje podatke u Health Connect (jednosmjerno, Android 14+). Time indirektno dobivamo Garmin podatke. |
 | "Android Health" | Google Fit API se gasi (deprecated 2026.); zamjena je **Health Connect**. | Health Connect od prvog dana integracije. |
 | Bilježenje serija/ponavljanja/težine u Health Connect | Health Connect nema tip podatka za serije × ponavljanja × kg (ima sesiju vježbanja tipa `STRENGTH_TRAINING`/`WEIGHTLIFTING`). | Detaljni podaci žive u lokalnoj bazi aplikacije; u Health Connect upisujemo samo sesiju (vrijeme, tip, trajanje). |
@@ -34,8 +59,12 @@ Ove brojke koristimo kao **zadane granice** generatora plana, ne kao medicinski 
 - Dob, spol, tjelesna masa, iskustvo (početnik / srednji / napredni), ozljede/ograničenja
   (npr. križa, rame, koljeno → isključuje ili zamjenjuje vježbe).
 - Upitnik spremnosti (PAR-Q+); ako ima "DA" odgovora → preporuka konzultacije s liječnikom.
-- Dostupna oprema (checkbox): bučice (raspon kg + korak), trap bar, šipka + stalak, klupa,
-  sajla/kabel, lat-pulldown, leg press, veslački ergometar, TRX/gume.
+- Dostupna oprema (zadano prema odluci, korisnik može mijenjati):
+  - bučice — popis točnih težina (zadano 8–40 kg, korak se upisuje),
+  - šipka + ploče — najmanja ploča određuje korak (npr. 1,25 kg → +2,5 kg),
+  - trap bar (+ ploče),
+  - lat mašina (pulldown) i sajla za sjedeće veslanje — korak slaganja utega se upisuje,
+  - dodatno (provjeriti): klupa (ravna/kosa), stalak za čučanj.
 - Početna testiranja (opcionalno): procijenjeni 1RM iz submaksimalnog testa (npr. 8–10 pon.),
   hvat, sjedni-ustani 30 s, ravnoteža na jednoj nozi.
 
@@ -48,6 +77,21 @@ Ove brojke koristimo kao **zadane granice** generatora plana, ne kao medicinski 
   bučicom, pulldown), **nošenje** (farmer's walk – trap bar/bučice), **core/anti-rotacija**,
   **ravnoteža**.
 - Zagrijavanje i mobilnost prilagođeni dobi uvijek uključeni.
+
+### 3.2a Ručni odabir vježbi — "Moj plan"
+Tri načina rada, korisnik bira i može ih mijenjati u bilo kojem trenutku:
+1. **Automatski** — generator slaže plan (3.2).
+2. **Prilagođeni** — generator predloži plan, korisnik dodaje/briše/mijenja vježbe i redoslijed.
+3. **Ručni** — korisnik sam slaže treninge iz biblioteke (filter po opremi, mišićnoj skupini,
+   obrascu pokreta, sportu) i za svaku vježbu bira broj serija, raspon ponavljanja i odmor
+   (s predloženim zadanim vrijednostima).
+
+U svim načinima vrijedi isto:
+- **progresija težine ostaje automatska** (može se isključiti po vježbi),
+- moguće je dodati **vlastitu vježbu** (naziv, oprema, mišićne skupine),
+- aplikacija **upozorava, ali ne blokira**: npr. "ovaj tjedan nema vježbi povlačenja",
+  "noge su trenirane samo 1× tjedno (preporuka ACSM: ≥ 2×)", ili vježba koja je u profilu
+  označena kao rizična zbog ozljede.
 
 ### 3.3 Sport-specifični moduli (prijedlog sadržaja)
 - **Veslanje (veteransko)**: naglasak na stražnji lanac i odraz nogama (trap bar, RDL, hip
@@ -90,8 +134,7 @@ Ove brojke koristimo kao **zadane granice** generatora plana, ne kao medicinski 
 2. **Concept2 Logbook API** (opcija, ako koristite Concept2 ergometar): službeni javni API s
    OAuth-om; zahtijeva odobrenje Concept2 za produkciju.
 3. **Garmin direktno**: ne u planu (vidi točku 1).
-4. **AI trener (opcija)**: komentar izvještaja putem LLM-a — zahtijeva internet, API ključ i
-   pristanak na slanje podataka. Odluka na vama.
+4. **AI trener**: odbačeno (odluka: potpuno offline).
 
 ## 4. Tehnička arhitektura
 
@@ -102,7 +145,8 @@ Ove brojke koristimo kao **zadane granice** generatora plana, ne kao medicinski 
 - Bez vlastitog backenda u MVP-u; podaci ostaju na uređaju. Izvoz/uvoz (JSON/CSV) za backup.
 - Domenska logika (generator plana, progresija, analitika) u čistom Kotlinu — **pokrivena
   unit testovima**, jer je to "mozak" aplikacije.
-- minSdk 26 (Health Connect zahtjev), targetSdk najnoviji stabilni; Garmin → HC traži Android 14+.
+- minSdk 34 (Android 14), targetSdk najnoviji stabilni.
+- Bez dozvole `INTERNET`; jedini izlaz podataka je izvoz datoteke koji pokreće korisnik.
 
 ### Model podataka (skica)
 `UserProfile`, `Equipment`, `Exercise` (obrazac pokreta, mišići, oprema, kontraindikacije,
@@ -115,21 +159,21 @@ sportske oznake), `Program` → `ProgramWeek` → `WorkoutTemplate` → `Exercis
 | Faza | Sadržaj | Rezultat |
 |---|---|---|
 | 0 | Potvrda plana, odgovori na otvorena pitanja, skelet projekta, CI build | Prazna aplikacija se gradi |
-| 1 (MVP) | Profil, PAR-Q+, oprema, biblioteka vježbi (~30–40), generator plana, vođenje treninga, progresija, povijest | Upotrebljivo u teretani |
+| 1 (MVP) | Profil, PAR-Q+, oprema, biblioteka vježbi (~30–40), generator plana **i ručni odabir vježbi**, vođenje treninga, progresija, povijest, izvoz/uvoz | Upotrebljivo u teretani |
 | 2 | Ciljevi, analitika, grafovi, tjedni izvještaj | "Trenerski" pregled |
 | 3 | Sport-moduli + periodizacija po sezoni | Veslanje / trčanje / bicikl |
 | 4 | Health Connect (Garmin preko HC) | Objedinjeni pregled opterećenja |
-| 5 (opcija) | Concept2 API, AI komentar, upute/video vježbi | Nadogradnje |
+| 5 (opcija) | Upute/slike vježbi, Concept2 (zahtijeva internet — samo ako se odustane od strogo offline) | Nadogradnje |
 
 ## 6. Otvorena pitanja za vas
 
-1. Točan popis sprava u vašoj teretani (osim bučica i trap bara)? Raspon i korak bučica?
-2. Jezik sučelja: samo hrvatski ili HR + EN?
-3. Koju verziju Androida ima vaš telefon (Garmin → Health Connect zahtijeva 14+)? Koji Garmin uređaj?
-4. Veslate li i na Concept2 ergometru (za Concept2 integraciju)?
-5. AI-komentar u oblaku: želite li ga (uz slanje podataka) ili sve strogo offline?
-6. Samo za vas (APK) ili kasnije objava na Google Play (utječe na Health Connect odobrenje i privatnost)?
-7. Imate li ozljede/ograničenja koja treba ugraditi u pravila odabira vježbi?
+Odgovoreno: jezik, Android, offline, korisnici, oprema, ručni odabir vježbi.
+
+Preostalo (nije blokirajuće za fazu 0–1, ima zadane vrijednosti):
+1. Korak bučica između 8 i 40 kg (zadano: 2 kg)?
+2. Imate li klupu (ravnu/kosu) i stalak za čučanj? (zadano: da)
+3. Koji Garmin uređaj? (važno tek za fazu 4)
+4. Ozljede/ograničenja za pravila odabira vježbi? (zadano: nema; unosi se u profilu)
 
 ## Izvori
 - ACSM 2026 Position Stand – infografika: https://acsm.org/wp-content/uploads/2026/03/Resistance-Training-Position-Stand-infographic.pdf
