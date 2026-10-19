@@ -1,0 +1,548 @@
+<title>Dnevnik treninga</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700&display=swap">
+<style>
+/* Layout: jedna kolona širine telefona, donja traka s karticama, ljepljiva štoperica na treningu. */
+:root {
+  --bg: #eef1f4; --surface: #ffffff; --surface-2: #e3e8ee; --line: #cfd7e0;
+  --fg: #17212b; --muted: #5a6876; --accent: #1f5e8c; --accent-fg: #ffffff;
+  --work: #1d7a4c; --work-bg: #dcf1e5; --rest: #9a5b00; --rest-bg: #fbecd2;
+  --danger: #b3261e; --danger-bg: #fbe1de;
+  --display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #11171d; --surface: #1a232c; --surface-2: #24303b; --line: #33414e;
+  --fg: #e7edf3; --muted: #9aa8b5; --accent: #8cc4ef; --accent-fg: #0d2233;
+  --work: #6fd39e; --work-bg: #163527; --rest: #f2b65a; --rest-bg: #3a2a12;
+  --danger: #ff8a80; --danger-bg: #3d1a17; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #11171d; --surface: #1a232c; --surface-2: #24303b; --line: #33414e;
+  --fg: #e7edf3; --muted: #9aa8b5; --accent: #8cc4ef; --accent-fg: #0d2233;
+  --work: #6fd39e; --work-bg: #163527; --rest: #f2b65a; --rest-bg: #3a2a12;
+  --danger: #ff8a80; --danger-bg: #3d1a17; color-scheme: dark; }
+
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 17px; line-height: 1.45; }
+.app { max-width: 520px; margin: 0 auto; min-height: 100%; display: flex; flex-direction: column;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+main { flex: 1; display: flex; flex-direction: column; gap: 12px; padding-block: 16px 96px; }
+h1 { font-family: var(--display); font-weight: 700; font-size: 30px; line-height: 1.1; margin: 0; text-wrap: balance; letter-spacing: .01em; }
+h2 { font-family: var(--display); font-weight: 600; font-size: 21px; margin: 8px 0 0; letter-spacing: .02em; }
+h3 { font-size: 18px; font-weight: 600; margin: 0; }
+p { margin: 0; }
+.muted { color: var(--muted); font-size: 15px; }
+.preview-note { font-size: 13px; color: var(--muted); border: 1px dashed var(--line); border-radius: 8px; padding: 6px 10px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.warn { background: var(--danger-bg); border-color: transparent; color: var(--fg); }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { font: inherit; font-size: 15px; border: 1px solid var(--line); background: var(--surface); color: var(--fg);
+  border-radius: 999px; padding: 6px 14px; cursor: pointer; min-height: 38px; }
+.chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+button { font: inherit; cursor: pointer; }
+.btn { border: 0; border-radius: 10px; padding: 12px 16px; font-weight: 600; background: var(--accent); color: var(--accent-fg); min-height: 48px; }
+.btn.secondary { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+.btn.text { background: transparent; color: var(--accent); padding: 8px 4px; min-height: 0; font-weight: 500; align-self: flex-start; }
+.btn.danger { color: var(--danger); }
+.btn:disabled { opacity: .4; cursor: not-allowed; }
+.btn.block { width: 100%; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+label.check { display: flex; align-items: center; gap: 10px; padding: 4px 0; cursor: pointer; }
+label.check input { width: 22px; height: 22px; accent-color: var(--accent); flex: none; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; }
+.row > * { flex: 1 1 120px; min-width: 0; }
+.field { display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: var(--muted); }
+.field input { font: inherit; font-size: 20px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); width: 100%; box-sizing: border-box; font-variant-numeric: tabular-nums; }
+.ex-line { display: flex; justify-content: space-between; gap: 8px; }
+.ex-line .kg { font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
+.badge { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; font-weight: 600; color: var(--accent); }
+.set-log { font-variant-numeric: tabular-nums; font-size: 15px; }
+
+nav.tabs { position: fixed; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--line);
+  display: flex; justify-content: center; padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px); z-index: 5; }
+nav.tabs .inner { display: flex; width: 100%; max-width: 520px; }
+nav.tabs button { flex: 1; border: 0; background: none; color: var(--muted); padding: 10px 4px 12px; font-weight: 600; font-size: 15px; }
+nav.tabs button[aria-current="page"] { color: var(--accent); box-shadow: inset 0 3px 0 var(--accent); }
+
+.timer { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 4; border-radius: 10px; padding: 12px;
+  background: var(--surface-2); display: flex; flex-direction: column; gap: 4px; border: 1px solid var(--line); }
+.timer.work { background: var(--work-bg); border-color: var(--work); }
+.timer.rest { background: var(--rest-bg); border-color: var(--rest); }
+.timer .phase { font-family: var(--display); font-weight: 600; letter-spacing: .12em; font-size: 15px; text-transform: uppercase; }
+.timer.work .phase { color: var(--work); }
+.timer.rest .phase { color: var(--rest); }
+.timer .clock { font-family: var(--display); font-weight: 700; font-size: 56px; line-height: 1; font-variant-numeric: tabular-nums; }
+.timer .clock.over { color: var(--danger); }
+.timer .total { font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.card.active { border-color: var(--work); box-shadow: 0 0 0 2px var(--work) inset; }
+svg.chart { width: 100%; height: 90px; display: block; }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(76px + env(safe-area-inset-bottom, 0px)); background: var(--fg); color: var(--bg);
+  padding: 10px 16px; border-radius: 8px; font-size: 15px; z-index: 9; }
+.dialog-back { position: fixed; inset: 0; background: rgb(0 0 0 / .45); display: flex; align-items: center; justify-content: center; z-index: 10;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.dialog { background: var(--surface); color: var(--fg); border-radius: 12px; padding: 16px; max-width: 420px; width: 100%; display: flex; flex-direction: column; gap: 10px; }
+.dialog .actions { display: flex; justify-content: flex-end; gap: 8px; }
+@media (prefers-reduced-motion: no-preference) { .timer { transition: background-color .3s, border-color .3s; } }
+</style>
+
+<div class="app"><main id="main"></main></div>
+<nav class="tabs" id="tabs" hidden><div class="inner">
+  <button id="tab-plan" data-tab="plan">Plan</button>
+  <button id="tab-progress" data-tab="progress">Napredak</button>
+  <button id="tab-settings" data-tab="settings">Postavke</button>
+</div></nav>
+<div id="overlay"></div>
+
+<script id="core">
+// ===== Logika – 1:1 s Kotlin modulom core/ (Model.kt, ExerciseLibrary.kt, Timing.kt, PlanBuilder.kt, Advisor.kt) =====
+const GROUPS = [["LEGS","Noge"],["BACK","Leđa"],["CHEST","Prsa"],["SHOULDERS","Ramena"],["ARMS","Ruke"],["CORE","Trup"]];
+const GROUP_LABEL = Object.fromEntries(GROUPS);
+const KINDS = { DUMBBELL: ["Bučice", 2.0], BARBELL: ["Šipka / trap bar", 2.5], MACHINE: ["Mašina / sajla", 5.0], BODYWEIGHT: ["Vlastita težina", 0.0] };
+const GOALS = {
+  STRENGTH: { label: "Snaga", repMin: 5, repMax: 8, restSets: 180, restEx: 180 },
+  HYPERTROPHY: { label: "Hipertrofija", repMin: 8, repMax: 12, restSets: 90, restEx: 120 },
+};
+const TIMED_MIN_SEC = 20, TIMED_MAX_SEC = 45, SETS = 3, WARMUP_MIN = 5, SEC_PER_REP = 4;
+const DURATIONS = [30, 45, 60, 75, 90];
+const REST_SET_OPTIONS = [60, 90, 120, 150, 180, 240];
+const REST_EX_OPTIONS = [60, 90, 120, 180, 240];
+
+const E = (id, name, group, kind, timed = false) => ({ id, name, group, kind, timed });
+const LIBRARY = [
+  E("back_squat","Čučanj – šipka","LEGS","BARBELL"), E("trap_bar_deadlift","Mrtvo dizanje – trap bar","LEGS","BARBELL"),
+  E("rdl_barbell","Rumunjsko mrtvo dizanje – šipka","LEGS","BARBELL"), E("goblet_squat","Goblet čučanj – bučica","LEGS","DUMBBELL"),
+  E("lunge_db","Iskorak – bučice","LEGS","DUMBBELL"), E("step_up_db","Penjanje na klupu – bučice","LEGS","DUMBBELL"),
+  E("rdl_db","Rumunjsko mrtvo dizanje – bučice","LEGS","DUMBBELL"), E("calf_raise_db","Podizanje na prste – bučica","LEGS","DUMBBELL"),
+  E("lat_pulldown","Lat mašina – povlačenje ispred","BACK","MACHINE"), E("lat_pulldown_close","Lat mašina – uski hvat","BACK","MACHINE"),
+  E("cable_row","Veslanje na sajli – sjedeće","BACK","MACHINE"), E("db_row","Jednoručno veslanje – bučica","BACK","DUMBBELL"),
+  E("barbell_row","Pretklonjeno veslanje – šipka","BACK","BARBELL"),
+  E("bench_press","Potisak s klupe – šipka","CHEST","BARBELL"), E("db_bench_press","Potisak s klupe – bučice","CHEST","DUMBBELL"),
+  E("incline_db_press","Kosi potisak – bučice","CHEST","DUMBBELL"), E("push_up","Sklek","CHEST","BODYWEIGHT"),
+  E("db_shoulder_press","Potisak bučica iznad glave","SHOULDERS","DUMBBELL"), E("barbell_ohp","Potisak šipke iznad glave","SHOULDERS","BARBELL"),
+  E("lateral_raise","Odručenje u stranu – bučice","SHOULDERS","DUMBBELL"), E("face_pull","Face pull – sajla","SHOULDERS","MACHINE"),
+  E("db_curl","Pregib bučicama – biceps","ARMS","DUMBBELL"), E("hammer_curl","Čekić pregib – bučice","ARMS","DUMBBELL"),
+  E("barbell_curl","Pregib šipkom – biceps","ARMS","BARBELL"), E("triceps_pushdown","Triceps potisak – sajla","ARMS","MACHINE"),
+  E("db_triceps_ext","Francuski potisak – bučica","ARMS","DUMBBELL"),
+  E("plank","Prednji upor (plank)","CORE","BODYWEIGHT",true), E("side_plank","Bočni upor","CORE","BODYWEIGHT",true),
+  E("pallof_press","Pallof potisak – sajla","CORE","MACHINE"), E("dead_bug","Dead bug","CORE","BODYWEIGHT"),
+  E("farmer_carry","Farmerovo nošenje – bučice","CORE","DUMBBELL",true),
+];
+const catalog = (custom) => { const all = LIBRARY.concat(custom || []); const by = Object.fromEntries(all.map(e => [e.id, e])); return { all, get: id => by[id] }; };
+
+function kg(v) { return Number.isInteger(v) ? String(v) : v.toFixed(2).replace(/0+$/, "").replace(/\.$/, "").replace(".", ","); }
+function restLabel(sec) { if (sec < 60) return sec + " s"; if (sec % 60 === 0) return (sec / 60) + " min"; return Math.floor(sec / 60) + ":" + String(sec % 60).padStart(2, "0") + " min"; }
+
+const Timing = {
+  workSeconds(ex, goal) { if (!ex) return Math.max(TIMED_MAX_SEC, goal.repMax * SEC_PER_REP); return ex.timed ? TIMED_MAX_SEC : goal.repMax * SEC_PER_REP; },
+  exerciseSeconds(ex, goal, restSets) { return SETS * this.workSeconds(ex, goal) + (SETS - 1) * restSets; },
+  workoutMinutes(exs, goal, restSets, restEx) {
+    if (!exs.length) return WARMUP_MIN;
+    const sec = exs.reduce((s, e) => s + this.exerciseSeconds(e, goal, restSets), 0) + (exs.length - 1) * restEx;
+    return WARMUP_MIN + Math.floor((sec + 59) / 60);
+  },
+  capacity(minutes, goal, restSets, restEx) {
+    const available = (minutes - WARMUP_MIN) * 60;
+    const per = this.exerciseSeconds(null, goal, restSets) + restEx;
+    return Math.max(1, Math.floor((available + restEx) / per));
+  },
+};
+
+const BIG = new Set(["LEGS", "BACK", "CHEST"]);
+function buildPlan(daysPerWeek, selected, capacity) {
+  const days = Math.min(6, Math.max(1, daysPerWeek)), cap = Math.max(1, capacity);
+  const byGroup = Object.fromEntries(GROUPS.map(([g]) => [g, selected.filter(e => e.group === g)]));
+  const workouts = [];
+  for (let d = 0; d < days; d++) {
+    const wanted = GROUPS.flatMap(([g]) => {
+      const list = byGroup[g];
+      if (!list.length) return [];
+      if (list.length <= days) return [list[d % list.length]];
+      return list.filter((_, i) => i % days === d);
+    });
+    let chosen;
+    if (wanted.length <= cap) chosen = wanted;
+    else {
+      const big = wanted.filter(e => BIG.has(e.group));
+      if (big.length >= cap) chosen = big.slice(0, cap);
+      else {
+        const small = wanted.filter(e => !BIG.has(e.group)), free = cap - big.length;
+        const rotated = small.map((_, i) => small[(i + d * free) % small.length]);
+        const keep = new Set(rotated.slice(0, free));
+        chosen = wanted.filter(e => BIG.has(e.group) || keep.has(e));
+      }
+    }
+    workouts.push({ name: "Trening " + String.fromCharCode(65 + d), exerciseIds: chosen.map(e => e.id) });
+  }
+  const used = new Set(workouts.flatMap(w => w.exerciseIds));
+  return { workouts, omitted: selected.filter(e => !used.has(e.id)) };
+}
+
+function workingSets(sets) {
+  const ws = sets.map(s => s.weightKg).filter(w => w != null);
+  if (!ws.length) return sets;
+  const top = Math.max(...ws);
+  return sets.filter(s => s.weightKg === top);
+}
+
+function recommend(ex, goal, history) {
+  const sessions = history.filter(s => s.length);
+  const min = ex.timed ? TIMED_MIN_SEC : goal.repMin, max = ex.timed ? TIMED_MAX_SEC : goal.repMax;
+  const unit = ex.timed ? "s" : "ponavljanja";
+  const last = sessions[sessions.length - 1];
+  if (!last) return { action: "START", weightKg: null, text: `Prvi put: izaberite težinu s kojom možete ${SETS} serije po ${min}–${max} ${unit} uz dobru tehniku.` };
+  const weights = last.map(s => s.weightKg).filter(w => w != null);
+  const weight = weights.length ? Math.max(...weights) : null;
+  const working = workingSets(last);
+  const allTop = working.length >= SETS && working.every(s => s.reps >= max);
+  const below = working.some(s => s.reps < min);
+  const prev = sessions[sessions.length - 2];
+  const prevBelow = prev ? workingSets(prev).some(s => s.reps < min) : false;
+  const step = KINDS[ex.kind][1];
+  if (weight == null || step === 0) {
+    if (allTop) return { action: "INCREASE", weightKg: null, text: ex.timed ? `Sve serije ≥ ${max} s – produljite ili otežajte vježbu.` : `Sve serije ≥ ${max} ponavljanja – otežajte varijantu ili dodajte ponavljanja.` };
+    return { action: "HOLD", weightKg: null, text: "Nastavite i pokušajte dodati ponavljanje ili sekundu." };
+  }
+  if (allTop) { const up = weight + step; return { action: "INCREASE", weightKg: up, text: `Sve serije na ${max} ${unit} – povećajte na ${kg(up)} kg.` }; }
+  if (below && prevBelow) { const down = Math.max(0, weight - step); return { action: "DECREASE", weightKg: down, text: `Dva treninga zaredom ispod ${min} ${unit} – smanjite na ${kg(down)} kg.` }; }
+  if (below) return { action: "HOLD", weightKg: weight, text: `Ispod ${min} ${unit} – ostanite na ${kg(weight)} kg i pokušajte ponovno.` };
+  return { action: "HOLD", weightKg: weight, text: `Ostanite na ${kg(weight)} kg dok sve serije ne dođu do ${max} ${unit}.` };
+}
+</script>
+
+<script>
+// ===== Pregled sučelja (stanje u pregledniku; nije pravi spremnik podataka) =====
+const STORE_KEY = "dnevnik-treninga-pregled-v1";
+const $ = (sel) => document.querySelector(sel);
+const esc = (s) => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const today = () => Math.floor((Date.now() - new Date().getTimezoneOffset() * 60000) / 86400000);
+const fmtDate = (day) => { const d = new Date(day * 86400000); return `${d.getUTCDate()}. ${d.getUTCMonth() + 1}. ${d.getUTCFullYear()}.`; };
+const clock = (sec) => { const s = Math.abs(sec); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); };
+
+function exampleData() {
+  const d = { example: true, goal: "HYPERTROPHY", daysPerWeek: 3, durationMinutes: 60, restSetsSec: null, restExercisesSec: null,
+    selected: ["trap_bar_deadlift", "back_squat", "lat_pulldown", "cable_row", "bench_press", "db_shoulder_press", "db_curl", "plank"],
+    customExercises: [], plan: [], omitted: [], sessions: [] };
+  rebuild(d);
+  const t = today();
+  const mk = (daysAgo, w, entries) => ({ id: Date.now() - daysAgo * 86400000, epochDay: t - daysAgo, workoutName: w, durationSeconds: 3300 + daysAgo * 7,
+    entries: entries.map(([id, kgv, reps]) => ({ exerciseId: id, sets: reps.map(r => ({ weightKg: kgv, reps: r, workSeconds: 40 })) })) });
+  d.sessions = [
+    mk(14, "Trening A", [["trap_bar_deadlift", 60, [10, 9, 8]], ["lat_pulldown", 45, [12, 11, 10]], ["db_curl", 10, [12, 12, 11]]]),
+    mk(10, "Trening B", [["back_squat", 50, [10, 10, 9]], ["cable_row", 40, [12, 12, 12]], ["db_shoulder_press", 12, [10, 9, 8]]]),
+    mk(7, "Trening C", [["trap_bar_deadlift", 60, [12, 11, 10]], ["bench_press", 45, [10, 9, 9]], ["db_curl", 10, [12, 12, 12]]]),
+    mk(3, "Trening A", [["trap_bar_deadlift", 60, [12, 12, 12]], ["lat_pulldown", 45, [12, 12, 11]], ["db_curl", 12, [10, 9, 9]]]),
+  ];
+  return d;
+}
+
+let state = null;
+function load() { try { const s = localStorage.getItem(STORE_KEY); if (s) return JSON.parse(s); } catch (e) {} return exampleData(); }
+function persist() { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {} }
+state = load();
+
+const goalOf = (d) => GOALS[d.goal];
+const restSets = (d) => d.restSetsSec ?? goalOf(d).restSets;
+const restEx = (d) => d.restExercisesSec ?? goalOf(d).restEx;
+const cat = () => catalog(state.customExercises);
+function rebuild(d) {
+  const c = catalog(d.customExercises), g = GOALS[d.goal];
+  const cap = Timing.capacity(d.durationMinutes, g, d.restSetsSec ?? g.restSets, d.restExercisesSec ?? g.restEx);
+  const r = buildPlan(d.daysPerWeek, d.selected.map(c.get).filter(Boolean), cap);
+  d.plan = r.workouts; d.omitted = r.omitted.map(e => e.id);
+}
+function history(id) { return state.sessions.map(s => { const e = s.entries.find(x => x.exerciseId === id); return e && e.sets.length ? [s.epochDay, e.sets] : null; }).filter(Boolean); }
+function rec(id) { const ex = cat().get(id); return ex ? recommend(ex, goalOf(state), history(id).map(h => h[1])) : null; }
+function nextIndex() { const last = state.sessions[state.sessions.length - 1]; const i = last ? state.plan.findIndex(w => w.name === last.workoutName) : -1; return i < 0 || !state.plan.length ? 0 : (i + 1) % state.plan.length; }
+const describeSets = (sets, timed) => sets.map(s => (s.weightKg != null ? kg(s.weightKg) + "×" : "") + s.reps + (timed ? "s" : "")).join("  ");
+
+let ui = { tab: "plan", editing: false, setup: null, active: null, toast: null };
+
+// --- Zvuk na kraju odmora (Web Audio; radi nakon prvog dodira) ---
+let audio = null;
+function beep() {
+  try {
+    audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+    [0, 0.35].forEach(off => { const o = audio.createOscillator(), g = audio.createGain(); o.frequency.value = 880; g.gain.value = 0.2;
+      o.connect(g); g.connect(audio.destination); o.start(audio.currentTime + off); o.stop(audio.currentTime + off + 0.2); });
+  } catch (e) {}
+  try { navigator.vibrate && navigator.vibrate([400, 200, 400]); } catch (e) {}
+}
+let wakeLock = null;
+async function keepAwake(on) {
+  try { if (on && !wakeLock && navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); if (!on && wakeLock) { await wakeLock.release(); wakeLock = null; } } catch (e) { wakeLock = null; }
+}
+
+function toast(msg) { ui.toast = msg; render(); setTimeout(() => { ui.toast = null; render(); }, 2200); }
+function chips(name, options, selected, label) {
+  return `<div class="chips" role="group">${options.map(o => `<button class="chip" data-chip="${name}" data-value="${esc(o)}" aria-pressed="${String(o) === String(selected)}">${esc(label(o))}</button>`).join("")}</div>`;
+}
+
+// ===== Ekrani =====
+function setupView() {
+  const s = ui.setup, g = GOALS[s.goal], c = catalog(s.custom);
+  const cap = Timing.capacity(s.minutes, g, s.restSets, s.restEx);
+  const star = (v, rec) => restLabel(v) + (v === rec ? " ★" : "");
+  return `
+    <h1>Postavke plana</h1>
+    <h2>Cilj</h2>${chips("goal", Object.keys(GOALS), s.goal, k => GOALS[k].label)}
+    <p class="muted">${SETS} serije × ${g.repMin}–${g.repMax} ponavljanja</p>
+    <h2>Odmor između serija</h2>${chips("restSets", REST_SET_OPTIONS, s.restSets, v => star(v, g.restSets))}
+    <h2>Odmor između vježbi</h2>${chips("restEx", REST_EX_OPTIONS, s.restEx, v => star(v, g.restEx))}
+    <p class="muted">★ preporuka za ${g.label.toLowerCase()}: ${restLabel(g.restSets)} između serija, ${restLabel(g.restEx)} između vježbi.</p>
+    ${s.restSets !== g.restSets || s.restEx !== g.restEx ? `<button class="btn text" data-act="resetRest">Vrati preporučene odmore</button>` : ""}
+    <h2>Broj treninga tjedno</h2>${chips("days", [1, 2, 3, 4, 5], s.days, v => v)}
+    <h2>Trajanje treninga</h2>${chips("minutes", DURATIONS, s.minutes, v => v + " min")}
+    <p class="muted">U ${s.minutes} min stane do <strong>${cap}</strong> vježbi po treningu (uključeno ${WARMUP_MIN} min zagrijavanja).</p>
+    <h2>Vježbe po mišićnim skupinama</h2>
+    <p class="muted">Odaberite vježbe koje želite raditi. Aplikacija ih raspoređuje po treninzima.</p>
+    ${GROUPS.map(([gk, gl]) => {
+      const list = c.all.filter(e => e.group === gk), n = list.filter(e => s.selected.includes(e.id)).length;
+      return `<section class="card"><h3>${gl}${n ? ` (${n})` : ""}</h3>
+        ${list.map(e => `<label class="check"><input type="checkbox" id="sel-${e.id}" data-sel="${e.id}" ${s.selected.includes(e.id) ? "checked" : ""}> ${esc(e.name)}</label>`).join("")}
+        <button class="btn text" data-act="addCustom" data-group="${gk}">+ Vlastita vježba</button></section>`;
+    }).join("")}
+    <button class="btn block" data-act="saveSetup" ${s.selected.length ? "" : "disabled"}>Složi plan</button>
+    ${state.plan.length ? `<button class="btn text" data-act="cancelSetup">Odustani</button>` : ""}`;
+}
+
+function planView() {
+  const c = cat(), g = goalOf(state), next = nextIndex();
+  return `
+    <h1>Plan – ${g.label}</h1>
+    ${state.example ? `<p class="preview-note">Pregled s primjerom podataka. Promjene ostaju samo u ovom pregledniku.</p>` : ""}
+    <p class="muted">${state.daysPerWeek}× tjedno · ${state.durationMinutes} min · ${SETS} × ${g.repMin}–${g.repMax} pon. · odmor ${restLabel(restSets(state))} / ${restLabel(restEx(state))}</p>
+    ${state.omitted.length ? `<div class="card warn">Ne stane u ${state.durationMinutes} min: ${state.omitted.map(id => esc(c.get(id)?.name || id)).join(", ")}. Produljite trening, dodajte trening tjedno ili odaberite manje vježbi.</div>` : ""}
+    ${state.plan.map((w, i) => {
+      const exs = w.exerciseIds.map(c.get).filter(Boolean);
+      return `<section class="card">
+        ${i === next ? `<span class="badge">Sljedeći</span>` : ""}
+        <h3>${esc(w.name)} · ~${Timing.workoutMinutes(exs, g, restSets(state), restEx(state))} min</h3>
+        ${exs.map(e => { const r = rec(e.id); return `<div class="ex-line"><span>${esc(e.name)}</span><span class="kg">${r && r.weightKg != null ? kg(r.weightKg) + " kg" : ""}</span></div>`; }).join("")}
+        <button class="btn ${i === next ? "block" : "secondary"}" data-act="start" data-i="${i}">${i === next ? "Započni trening" : "Započni"}</button>
+      </section>`;
+    }).join("")}`;
+}
+
+function workoutView() {
+  const a = ui.active, c = cat(), now = Date.now(), t = a.timer;
+  let panel;
+  if (!t) panel = `<div class="timer"><span class="total">${esc(a.name)} · ukupno ${clock(Math.floor((now - a.startedAt) / 1000))}</span><span class="muted">Pritisnite „Počni seriju“ kod vježbe.</span></div>`;
+  else if (t.kind === "WORK") panel = `<div class="timer work"><span class="total">${esc(a.name)} · ukupno ${clock(Math.floor((now - a.startedAt) / 1000))}</span>
+      <span class="phase">Rad · ${esc(c.get(a.entries[t.entry].exerciseId)?.name || "")}</span><span class="clock">${clock(Math.floor((now - t.startedAt) / 1000))}</span>
+      <button class="btn block" data-act="endSet">■ Kraj serije</button></div>`;
+  else {
+    const left = Math.ceil((t.startedAt + t.duration * 1000 - now) / 1000);
+    panel = `<div class="timer rest"><span class="total">${esc(a.name)} · ukupno ${clock(Math.floor((now - a.startedAt) / 1000))}</span>
+      <span class="phase">${t.kind === "REST_SET" ? "Odmor između serija" : "Odmor – sljedeća vježba"}</span>
+      <span class="clock ${left < 0 ? "over" : ""}">${left < 0 ? "+" : ""}${clock(left)}</span>
+      <button class="btn text" data-act="skipRest">${left < 0 ? "Odmor je istekao – zatvori" : "Zaustavi odmor"}</button></div>`;
+  }
+  return `${panel}
+    ${a.entries.map((e, i) => {
+      const ex = c.get(e.exerciseId); if (!ex) return "";
+      const r = rec(ex.id), h = history(ex.id), last = h[h.length - 1];
+      const working = t && t.kind === "WORK" && t.entry === i, pending = a.pending && a.pending.entry === i ? a.pending : null;
+      const showW = ex.kind !== "BODYWEIGHT", defW = e.sets.length ? e.sets[e.sets.length - 1].weightKg : r?.weightKg;
+      return `<section class="card ${working ? "active" : ""}">
+        <h3>${esc(ex.name)} <span class="muted">(${e.sets.length}/${SETS})</span></h3>
+        ${r ? `<p class="muted">${esc(r.text)}</p>` : ""}
+        ${last ? `<p class="muted">Prošli put (${fmtDate(last[0])}): ${describeSets(last[1], ex.timed)}</p>` : ""}
+        ${e.sets.map((s, si) => `<p class="set-log">Serija ${si + 1}: ${describeSets([s], ex.timed)}${s.workSeconds != null ? " · rad " + clock(s.workSeconds) : ""}</p>`).join("")}
+        ${working ? "" : `<button class="btn secondary" data-act="startSet" data-i="${i}" ${t && t.kind === "WORK" ? "disabled" : ""}>▶ Počni seriju ${e.sets.length + 1}</button>`}
+        ${pending ? `<p><strong>Upišite rezultat serije (rad ${clock(pending.workSeconds)}):</strong></p>` : ""}
+        <div class="row">
+          ${showW ? `<label class="field">kg<input id="w-${i}" inputmode="decimal" value="${defW != null ? kg(defW) : ""}"></label>` : ""}
+          <label class="field">${ex.timed ? "sekunde" : "ponavljanja"}<input id="r-${i}" inputmode="numeric"></label>
+        </div>
+        <button class="btn" data-act="saveSet" data-i="${i}">Spremi seriju</button>
+        ${e.sets.length ? `<button class="btn text" data-act="undoSet" data-i="${i}">Poništi zadnju seriju</button>` : ""}
+      </section>`;
+    }).join("")}
+    <button class="btn block" data-act="finish">Završi trening</button>
+    <button class="btn text danger" data-act="cancelWorkout">Odustani od treninga</button>`;
+}
+
+function chartSvg(values) {
+  const W = 300, H = 90, pad = 10, min = Math.min(...values), max = Math.max(...values), span = max - min || 1;
+  const pts = values.map((v, i) => [pad + i * (W - 2 * pad) / (values.length - 1), H - pad - (v - min) / span * (H - 2 * pad)]);
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
+    <polyline fill="none" stroke="var(--accent)" stroke-width="3" vector-effect="non-scaling-stroke" points="${pts.map(p => p.join(",")).join(" ")}"></polyline>
+    ${pts.map(p => `<circle cx="${p[0]}" cy="${p[1]}" r="4" fill="var(--accent)"></circle>`).join("")}</svg>`;
+}
+
+function progressView() {
+  const c = cat();
+  const ids = [...new Set(state.plan.flatMap(w => w.exerciseIds).concat(state.sessions.flatMap(s => s.entries.map(e => e.exerciseId))))];
+  const cards = ids.map(id => {
+    const ex = c.get(id), h = history(id); if (!ex || !h.length) return "";
+    const vals = h.map(([, sets]) => { const w = sets.map(s => s.weightKg).filter(x => x != null); return w.length ? Math.max(...w) : Math.max(...sets.map(s => s.reps)); });
+    const unit = h[h.length - 1][1].some(s => s.weightKg != null) ? "kg" : ex.timed ? "s" : "pon.";
+    const first = vals[0], now = vals[vals.length - 1], ch = first > 0 ? Math.round((now - first) / first * 100) : 0;
+    const r = rec(id);
+    return `<section class="card"><h3>${esc(ex.name)}</h3>
+      <p>Početak ${kg(first)} ${unit} → sada ${kg(now)} ${unit}${h.length > 1 ? ` (${ch >= 0 ? "+" : ""}${ch} %)` : ""}</p>
+      ${vals.length >= 2 ? chartSvg(vals) : ""}
+      ${r ? `<p class="muted">Preporuka: ${esc(r.text)}</p>` : ""}
+      ${h.slice(-3).reverse().map(([d, sets]) => `<p class="muted set-log">${fmtDate(d)}: ${describeSets(workingSets(sets), ex.timed)}</p>`).join("")}
+    </section>`;
+  }).join("");
+  return `<h1>Napredak</h1>
+    ${state.sessions.length ? "" : "<p>Još nema odrađenih treninga.</p>"}
+    ${cards}
+    ${state.sessions.length ? `<h2>Odrađeni treninzi</h2>` + state.sessions.slice().reverse().map(s => `<section class="card">
+      <h3>${fmtDate(s.epochDay)} · ${esc(s.workoutName)}${s.durationSeconds != null ? ` · ${Math.floor(s.durationSeconds / 60)} min` : ""}</h3>
+      ${s.entries.map(e => { const ex = c.get(e.exerciseId); return `<p class="muted set-log">${esc(ex?.name || e.exerciseId)}: ${describeSets(e.sets, ex?.timed)}</p>`; }).join("")}
+      <button class="btn text danger" data-act="deleteSession" data-id="${s.id}">Obriši trening</button></section>`).join("") : ""}`;
+}
+
+function settingsView() {
+  return `<h1>Postavke</h1>
+    <button class="btn secondary block" data-act="editPlan">Promijeni cilj, odmore, broj treninga i vježbe</button>
+    <h2>Pregled</h2>
+    <p class="muted">Ovo je web pregled Android aplikacije za brže isprobavanje. Logika je ista kao u aplikaciji; podaci ostaju samo u ovom pregledniku. Izvoz i uvoz datoteke postoje samo u Android aplikaciji.</p>
+    <button class="btn secondary block" data-act="loadExample">Učitaj primjer podataka</button>
+    <button class="btn secondary block danger" data-act="clearAll">Počni ispočetka (prazno)</button>`;
+}
+
+function render() {
+  const main = $("#main"), focusId = document.activeElement && document.activeElement.id;
+  const vals = {}; main.querySelectorAll("input[id]").forEach(i => { if (i.type !== "checkbox") vals[i.id] = i.value; });
+  let html;
+  const needsSetup = !state.plan.length;
+  if (ui.active) html = workoutView();
+  else if (needsSetup || ui.editing) { if (!ui.setup) ui.setup = setupFrom(state); html = setupView(); }
+  else html = ui.tab === "plan" ? planView() : ui.tab === "progress" ? progressView() : settingsView();
+  main.innerHTML = html;
+  Object.entries(vals).forEach(([id, v]) => { const el = document.getElementById(id); if (el) el.value = v; });
+  if (focusId) { const el = document.getElementById(focusId); if (el) el.focus(); }
+  const showTabs = !ui.active && !needsSetup && !ui.editing;
+  $("#tabs").hidden = !showTabs;
+  document.querySelectorAll("#tabs button").forEach(b => b.setAttribute("aria-current", b.dataset.tab === ui.tab ? "page" : "false"));
+  $("#overlay").innerHTML = (ui.toast ? `<div class="toast" role="status">${esc(ui.toast)}</div>` : "") + (ui.dialog ? dialogHtml(ui.dialog) : "");
+}
+
+function setupFrom(d) {
+  const g = GOALS[d.goal];
+  return { goal: d.goal, days: d.daysPerWeek, minutes: d.durationMinutes, restSets: d.restSetsSec ?? g.restSets, restEx: d.restExercisesSec ?? g.restEx,
+    selected: d.selected.slice(), custom: d.customExercises.slice() };
+}
+
+function dialogHtml(dl) {
+  if (dl.type === "confirm") return `<div class="dialog-back"><div class="dialog" role="dialog" aria-modal="true"><h3>${esc(dl.title)}</h3><p>${esc(dl.text)}</p>
+    <div class="actions"><button class="btn text" data-act="dlgNo">${esc(dl.no || "Natrag")}</button><button class="btn" data-act="dlgYes">${esc(dl.yes)}</button></div></div></div>`;
+  if (dl.type === "custom") return `<div class="dialog-back"><div class="dialog" role="dialog" aria-modal="true"><h3>Vlastita vježba – ${GROUP_LABEL[dl.group]}</h3>
+    <label class="field">Naziv<input id="cx-name"></label>
+    ${chips("cxKind", Object.keys(KINDS), dl.kind, k => KINDS[k][0])}
+    <label class="check"><input type="checkbox" id="cx-timed" ${dl.timed ? "checked" : ""}> Bilježi se u sekundama</label>
+    <div class="actions"><button class="btn text" data-act="dlgNo">Odustani</button><button class="btn" data-act="cxSave">Dodaj</button></div></div></div>`;
+  return "";
+}
+
+function ask(title, text, yes, onYes, no) { ui.dialog = { type: "confirm", title, text, yes, no, onYes }; render(); }
+
+// ===== Radnje =====
+document.addEventListener("click", (ev) => {
+  const chip = ev.target.closest("[data-chip]");
+  if (chip) return onChip(chip.dataset.chip, chip.dataset.value);
+  const tab = ev.target.closest("#tabs [data-tab]");
+  if (tab) { ui.tab = tab.dataset.tab; render(); return; }
+  const b = ev.target.closest("[data-act]"); if (!b) return;
+  const act = b.dataset.act, i = Number(b.dataset.i), a = ui.active;
+  const actions = {
+    saveSetup() {
+      const s = ui.setup, g = GOALS[s.goal];
+      Object.assign(state, { goal: s.goal, daysPerWeek: s.days, durationMinutes: s.minutes,
+        restSetsSec: s.restSets === g.restSets ? null : s.restSets, restExercisesSec: s.restEx === g.restEx ? null : s.restEx,
+        selected: s.selected, customExercises: s.custom });
+      rebuild(state); persist(); ui.editing = false; ui.setup = null; ui.tab = "plan"; render();
+    },
+    cancelSetup() { ui.editing = false; ui.setup = null; render(); },
+    resetRest() { const g = GOALS[ui.setup.goal]; ui.setup.restSets = g.restSets; ui.setup.restEx = g.restEx; render(); },
+    addCustom() { ui.dialog = { type: "custom", group: b.dataset.group, kind: "DUMBBELL", timed: false }; render(); },
+    cxSave() {
+      const name = $("#cx-name").value.trim(); if (!name) return;
+      const ex = { id: "custom_" + Date.now(), name, group: ui.dialog.group, kind: ui.dialog.kind, timed: $("#cx-timed").checked };
+      ui.setup.custom.push(ex); ui.setup.selected.push(ex.id); ui.dialog = null; render();
+    },
+    dlgNo() { ui.dialog = null; render(); },
+    dlgYes() { const f = ui.dialog.onYes; ui.dialog = null; f(); render(); },
+    start() { const w = state.plan[i]; ui.active = { name: w.name, startedAt: Date.now(), entries: w.exerciseIds.map(id => ({ exerciseId: id, sets: [] })), timer: null, pending: null }; keepAwake(true); render(); },
+    startSet() { beepPrime(); a.timer = { kind: "WORK", entry: i, startedAt: Date.now() }; a.pending = null; render(); },
+    endSet() {
+      const t = a.timer, now = Date.now(), after = a.entries[t.entry].sets.length + 1;
+      a.pending = { entry: t.entry, workSeconds: Math.floor((now - t.startedAt) / 1000) };
+      a.timer = after >= SETS ? { kind: "REST_EX", entry: t.entry, startedAt: now, duration: restEx(state), signalled: false }
+                              : { kind: "REST_SET", entry: t.entry, startedAt: now, duration: restSets(state), signalled: false };
+      render();
+    },
+    skipRest() { if (a.timer && a.timer.kind !== "WORK") a.timer = null; render(); },
+    saveSet() {
+      const ex = cat().get(a.entries[i].exerciseId), wEl = $("#w-" + i), rEl = $("#r-" + i);
+      const reps = parseInt(rEl.value, 10), w = wEl ? parseFloat(wEl.value.replace(",", ".")) : null;
+      if (!(reps > 0) || (wEl && !(w >= 0))) { toast("Upišite " + (wEl ? "težinu i " : "") + (ex.timed ? "sekunde." : "ponavljanja.")); return; }
+      const work = a.pending && a.pending.entry === i ? a.pending.workSeconds : null;
+      a.entries[i].sets.push({ weightKg: wEl ? w : null, reps, workSeconds: work });
+      if (work != null) a.pending = null;
+      rEl.value = ""; render();
+    },
+    undoSet() { a.entries[i].sets.pop(); render(); },
+    finish() { ask("Završiti trening?", "Upisane serije se spremaju, a preporuke težina ažuriraju.", "Završi", () => {
+      const entries = a.entries.filter(e => e.sets.length);
+      if (entries.length) { state.sessions.push({ id: Date.now(), epochDay: today(), workoutName: a.name, entries, durationSeconds: Math.floor((Date.now() - a.startedAt) / 1000) }); persist(); }
+      ui.active = null; keepAwake(false); ui.tab = "plan"; if (entries.length) toast("Trening spremljen.");
+    }); },
+    cancelWorkout() { ask("Odustati od treninga?", "Upisane serije neće biti spremljene.", "Odustani", () => { ui.active = null; keepAwake(false); }, "Nastavi trening"); },
+    deleteSession() { const id = Number(b.dataset.id); ask("Obrisati trening?", "Brisanje se ne može poništiti.", "Obriši", () => { state.sessions = state.sessions.filter(s => s.id !== id); persist(); }); },
+    editPlan() { ui.editing = true; ui.setup = setupFrom(state); render(); },
+    loadExample() { ask("Učitati primjer?", "Trenutni podaci u ovom pregledniku zamijenit će se primjerom.", "Učitaj", () => { state = exampleData(); persist(); }); },
+    clearAll() { ask("Početi ispočetka?", "Brišu se plan i svi treninzi u ovom pregledniku.", "Obriši sve", () => {
+      state = { goal: "HYPERTROPHY", daysPerWeek: 3, durationMinutes: 60, restSetsSec: null, restExercisesSec: null, selected: [], customExercises: [], plan: [], omitted: [], sessions: [] };
+      persist(); ui.setup = null; }); },
+  };
+  if (actions[act]) actions[act]();
+});
+
+document.addEventListener("change", (ev) => {
+  const sel = ev.target.dataset && ev.target.dataset.sel;
+  if (sel && ui.setup) {
+    const s = ui.setup.selected;
+    if (ev.target.checked) { if (!s.includes(sel)) s.push(sel); } else ui.setup.selected = s.filter(x => x !== sel);
+    render();
+  }
+});
+
+function onChip(name, value) {
+  if (name === "cxKind") { ui.dialog.timed = $("#cx-timed").checked; const n = $("#cx-name").value; ui.dialog.kind = value; render(); $("#cx-name").value = n; return; }
+  const s = ui.setup; if (!s) return;
+  if (name === "goal") {
+    const old = GOALS[s.goal], g = GOALS[value];
+    if (s.restSets === old.restSets) s.restSets = g.restSets;
+    if (s.restEx === old.restEx) s.restEx = g.restEx;
+    s.goal = value;
+  } else if (name === "restSets") s.restSets = Number(value);
+  else if (name === "restEx") s.restEx = Number(value);
+  else if (name === "days") s.days = Number(value);
+  else if (name === "minutes") s.minutes = Number(value);
+  render();
+}
+
+function beepPrime() { try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); if (audio.state === "suspended") audio.resume(); } catch (e) {} }
+
+// Otkucaj štoperice: osvježava samo ploču, a signal daje jednom kad odmor istekne.
+setInterval(() => {
+  const a = ui.active; if (!a) return;
+  const t = a.timer;
+  if (t && t.kind !== "WORK" && !t.signalled && Date.now() >= t.startedAt + t.duration * 1000) { t.signalled = true; beep(); }
+  const panel = document.querySelector(".timer");
+  if (panel && !ui.dialog) {
+    const tmp = document.createElement("div"); tmp.innerHTML = workoutView();
+    panel.replaceWith(tmp.querySelector(".timer"));
+  }
+}, 250);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && ui.active) { wakeLock = null; keepAwake(true); } });
+
+render();
+</script>

@@ -30,3 +30,7 @@ GitHub → **Actions** → zadnji uspješan "Android CI" → artefakt `trening-s
 ./gradlew :app:assembleDebug    # traži Android SDK
 ./gradlew -PcoreOnly :core:test # bez Android SDK-a
 ```
+
+## Web pregled
+`web/index.html` je web pregled iste aplikacije (ista logika kao `core/`) za brzo isprobavanje
+i dogovaranje promjena u pregledniku. Promjene dogovorene u pregledu prenose se u Android aplikaciju.
