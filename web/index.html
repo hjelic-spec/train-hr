@@ -29,7 +29,7 @@ html, body { height: 100%; }
 body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 17px; line-height: 1.45; }
 .app { max-width: 520px; margin: 0 auto; min-height: 100%; display: flex; flex-direction: column;
   padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
-main { flex: 1; display: flex; flex-direction: column; gap: 12px; padding-block: 16px 96px; }
+main { flex: 1; display: flex; flex-direction: column; gap: 12px; padding-block: 16px 128px; }
 h1 { font-family: var(--display); font-weight: 700; font-size: 30px; line-height: 1.1; margin: 0; text-wrap: balance; letter-spacing: .01em; }
 h2 { font-family: var(--display); font-weight: 600; font-size: 21px; margin: 8px 0 0; letter-spacing: .02em; }
 h3 { font-size: 18px; font-weight: 600; margin: 0; }
@@ -95,6 +95,31 @@ nav.tabs button[aria-current="page"] { color: var(--accent); box-shadow: inset 0
 .stepper .field input { text-align: center; font-size: 24px; }
 .step { font-family: var(--display); font-size: 32px; font-weight: 700; line-height: 1; height: 52px; border-radius: 10px; border: 1px solid var(--accent); background: var(--surface); color: var(--accent); }
 .step:active { background: var(--accent); color: var(--accent-fg); }
+.wk-head { display: flex; justify-content: space-between; font-size: 15px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.progress { display: flex; gap: 4px; }
+.progress span { flex: 1; height: 6px; border-radius: 3px; background: var(--surface-2); }
+.progress span.cur { background: var(--accent); }
+.progress span.done { background: var(--work); }
+.focus { display: flex; flex-direction: column; gap: 10px; }
+.focus h1 { font-size: 34px; }
+.sets { display: flex; gap: 6px; flex-wrap: wrap; }
+.set { font-size: 14px; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--line); color: var(--muted); font-variant-numeric: tabular-nums; }
+.set.done { background: var(--work-bg); color: var(--work); border-color: var(--work); }
+.set.cur { border-color: var(--accent); color: var(--accent); }
+.timer.big { position: static; align-items: center; text-align: center; padding: 16px; }
+.timer.big .clock { font-size: 72px; }
+.timer .clock.idle { color: var(--muted); }
+.btn.huge { min-height: 60px; font-size: 20px; }
+.wk-foot { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; background: var(--surface); border-top: 1px solid var(--line);
+  display: grid; grid-template-columns: 48px 1fr 48px; align-items: center; gap: 4px;
+  padding: 8px max(16px, env(safe-area-inset-right, 0px)) calc(8px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+.wk-foot .nav { font-size: 30px; padding: 0; align-self: center; justify-self: center; }
+.next-info { display: flex; flex-direction: column; align-items: center; text-align: center; min-width: 0; line-height: 1.25; }
+.next-info strong { font-size: 17px; overflow-wrap: anywhere; }
+.wk-tools { display: flex; flex-wrap: wrap; gap: 4px 16px; justify-content: center; }
+.ov-row { font: inherit; display: flex; justify-content: space-between; gap: 8px; width: 100%; text-align: left; padding: 12px; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--fg); }
+.ov-row.cur { border-color: var(--accent); }
 .card.active { border-color: var(--work); box-shadow: 0 0 0 2px var(--work) inset; }
 svg.chart { width: 100%; height: 90px; display: block; }
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(76px + env(safe-area-inset-bottom, 0px)); background: var(--fg); color: var(--bg);
@@ -470,51 +495,109 @@ function planView() {
     }).join("")}`;
 }
 
-function workoutView() {
-  const a = ui.active, c = cat(), now = Date.now(), t = a.timer;
-  const total = `<span class="total">${esc(a.name)} · ukupno ${clock(Math.floor((now - a.startedAt) / 1000))}</span>`;
-  let panel;
-  if (!t) panel = `<div class="timer">${total}<span class="muted">Pritisnite „Počni seriju“ kod vježbe.</span></div>`;
-  else if (t.kind === "WORK") panel = `<div class="timer work">${total}
-      <span class="phase">Rad · ${esc(c.get(a.entries[t.entry].exerciseId)?.name || "")}</span><span class="clock">${clock(Math.floor((now - t.startedAt) / 1000))}</span>
-      <button class="btn block" data-act="endSet">■ Kraj serije</button></div>`;
-  else {
+// ===== Trening: jedna vježba po ekranu =====
+const entryDone = (e) => e.sets.length >= SETS;
+/** Sljedeća neodrađena vježba nakon trenutne (po redoslijedu), inače bilo koja neodrađena; null ako su sve gotove. */
+function nextUndone(a, fromPos = a.pos) {
+  const n = a.order.length;
+  for (let k = 1; k <= n; k++) { const idx = a.order[(fromPos + k) % n]; if (!entryDone(a.entries[idx]) && (fromPos + k) % n !== fromPos) return (fromPos + k) % n; }
+  return null;
+}
+function timerBlock(a, now) {
+  const t = a.timer, c = cat(), cur = a.order[a.pos];
+  if (t && t.kind === "WORK") return `<div class="timer work big"><span class="phase">Rad · serija ${a.entries[t.entry].sets.length + 1}</span>
+    <span class="clock">${clock(Math.floor((now - t.startedAt) / 1000))}</span></div>`;
+  if (t) {
     const left = Math.ceil((t.startedAt + t.duration * 1000 - now) / 1000);
-    panel = `<div class="timer rest">${total}
-      <span class="phase">${t.kind === "REST_SET" ? "Odmor između serija" : "Odmor – sljedeća vježba"}</span>
+    const label = t.kind === "REST_SET" ? "Odmor između serija" : t.entry !== cur ? "Odmor · pripremite se" : "Odmor između vježbi";
+    return `<div class="timer rest big"><span class="phase">${label}</span>
       <span class="clock ${left < 0 ? "over" : ""}">${left < 0 ? "+" : ""}${clock(left)}</span>
-      <button class="btn text" data-act="skipRest">${left < 0 ? "Odmor je istekao – zatvori" : "Zaustavi odmor"}</button></div>`;
+      <span class="muted">${left < 0 ? "Odmor je istekao – krenite kad ste spremni." : "Odbrojava se do sljedeće serije."}</span></div>`;
   }
-  return `${panel}
-    ${a.entries.map((e, i) => {
-      const ex = c.get(e.exerciseId); if (!ex) return "";
-      const r = rec(ex.id), h = history(ex.id), last = h[h.length - 1];
-      const working = t && t.kind === "WORK" && t.entry === i, pending = a.pending && a.pending.entry === i ? a.pending : null;
-      const showW = ex.kind !== "BODYWEIGHT", defW = e.sets.length ? e.sets[e.sets.length - 1].weightKg : r?.weightKg;
-      // Predupis: vrijeme izmjereno štopericom (vježbe na vrijeme), inače prošli rezultat iste serije, inače cilj.
-      const g = goalOf(state), lastSet = last ? last[1][e.sets.length] : null;
-      const defR = ex.timed && pending ? pending.workSeconds : lastSet ? lastSet.reps : ex.timed ? TIMED_MIN_SEC : g.repMax;
-      return `<section class="card ${working ? "active" : ""}">
-        <h3>${i + 1}. ${esc(ex.name)} <span class="muted">(${e.sets.length}/${SETS})</span></h3>
-        ${r ? `<p class="muted">${esc(r.text)}</p>` : ""}
-        ${last ? `<p class="muted">Prošli put (${fmtDate(last[0])}): ${describeSets(last[1], ex.timed)}</p>` : ""}
-        ${e.sets.map((s, si) => `<p class="set-log">Serija ${si + 1}: ${describeSets([s], ex.timed)}${s.workSeconds != null ? " · rad " + clock(s.workSeconds) : ""}</p>`).join("")}
-        ${working ? "" : `<button class="btn secondary" data-act="startSet" data-i="${i}" ${t && t.kind === "WORK" ? "disabled" : ""}>▶ Počni seriju ${e.sets.length + 1}</button>`}
-        ${pending ? `<p><strong>Upišite rezultat serije (rad ${clock(pending.workSeconds)}):</strong></p>` : ""}
-        <div class="row">
-          ${showW ? `<label class="field">kg<input id="w-${i}" inputmode="decimal" value="${defW != null ? kg(defW) : ""}"></label>` : ""}
-        </div>
-        <div class="stepper">
-          <button class="step" data-act="stepReps" data-i="${i}" data-d="${ex.timed ? -5 : -1}" aria-label="Manje">−</button>
+  return `<div class="timer big"><span class="phase">Spremni</span><span class="clock idle">${clock(0)}</span></div>`;
+}
+function workoutView() {
+  const a = ui.active;
+  if (a.view === "summary") return summaryView(a);
+  if (a.view === "overview") return overviewView(a);
+  const c = cat(), now = Date.now(), t = a.timer, i = a.order[a.pos], e = a.entries[i], ex = c.get(e.exerciseId), g = goalOf(state);
+  const r = rec(ex.id), h = history(ex.id), last = h[h.length - 1];
+  const working = t && t.kind === "WORK" && t.entry === i, pending = a.pending && a.pending.entry === i ? a.pending : null;
+  const showW = ex.kind !== "BODYWEIGHT", step = KINDS[ex.kind][1];
+  const defW = e.sets.length ? e.sets[e.sets.length - 1].weightKg : r?.weightKg;
+  // Predupis ponavljanja: izmjereno vrijeme (vježbe na vrijeme), prošli rezultat iste serije, inače cilj.
+  const lastSet = last ? last[1][e.sets.length] : null;
+  const defR = ex.timed && pending ? pending.workSeconds : lastSet ? lastSet.reps : ex.timed ? TIMED_MIN_SEC : g.repMax;
+  const doneCount = a.entries.filter(entryDone).length, nextPos = nextUndone(a);
+  const nextEx = nextPos != null ? c.get(a.entries[a.order[nextPos]].exerciseId) : null, nextRec = nextEx ? rec(nextEx.id) : null;
+  const setNo = e.sets.length + 1, range = ex.timed ? `${TIMED_MIN_SEC}–${TIMED_MAX_SEC} s` : `${g.repMin}–${g.repMax} pon.`;
+  const total = clock(Math.floor((now - a.startedAt) / 1000));
+  let primary;
+  if (working) primary = `<button class="btn block huge" data-act="endSet">■ Kraj serije</button>`;
+  else if (pending) primary = `<button class="btn block huge" data-act="saveSet" data-i="${i}">Spremi seriju ${setNo}</button>`;
+  else if (entryDone(e)) primary = `<button class="btn block huge" data-act="goNext">Sljedeća vježba ›</button>
+      <button class="btn text" data-act="startSet" data-i="${i}">+ Dodatna serija</button>`;
+  else primary = `<button class="btn block huge" data-act="startSet" data-i="${i}">▶ Počni seriju ${setNo}</button>`;
+  return `
+    <div class="wk-head">
+      <span>Vježba ${a.pos + 1} od ${a.order.length}</span><span class="total">ukupno ${total}</span>
+    </div>
+    <div class="progress" aria-hidden="true">${a.order.map((idx, p) => `<span class="${entryDone(a.entries[idx]) ? "done" : p === a.pos ? "cur" : ""}"></span>`).join("")}</div>
+    <section class="focus">
+      <h1>${esc(ex.name)}</h1>
+      <p class="muted">${SETS} × ${range}${state.pinned.includes(ex.id) ? ` · <span class="pin-tag">stalna</span>` : ""}</p>
+      ${r ? `<p>${esc(r.text)}</p>` : ""}
+      ${last ? `<p class="muted">Prošli put (${fmtDate(last[0])}): ${describeSets(last[1], ex.timed)}</p>` : ""}
+      <div class="sets">${Array.from({ length: Math.max(SETS, e.sets.length) }, (_, k) => { const st = e.sets[k];
+        return `<span class="set ${st ? "done" : k === e.sets.length ? "cur" : ""}">${st ? describeSets([st], ex.timed) : "Serija " + (k + 1)}</span>`; }).join("")}</div>
+      ${timerBlock(a, now)}
+      ${working ? "" : `
+        ${pending ? `<p><strong>Upišite rezultat serije ${setNo}</strong> (rad ${clock(pending.workSeconds)})</p>` : ""}
+        ${entryDone(e) && !pending ? "" : `
+        ${showW ? `<div class="stepper"><button class="step" data-act="stepW" data-i="${i}" data-d="${-step}" aria-label="Lakše">−</button>
+          <label class="field">kg<input id="w-${i}" inputmode="decimal" value="${defW != null ? kg(defW) : ""}"></label>
+          <button class="step" data-act="stepW" data-i="${i}" data-d="${step}" aria-label="Teže">+</button></div>` : ""}
+        <div class="stepper"><button class="step" data-act="stepReps" data-i="${i}" data-d="${ex.timed ? -5 : -1}" aria-label="Manje">−</button>
           <label class="field">${ex.timed ? "sekunde" : "ponavljanja"}<input id="r-${i}" inputmode="numeric" value="${defR}"></label>
-          <button class="step" data-act="stepReps" data-i="${i}" data-d="${ex.timed ? 5 : 1}" aria-label="Više">+</button>
-        </div>
-        <button class="btn" data-act="saveSet" data-i="${i}">Spremi seriju</button>
-        ${e.sets.length ? `<button class="btn text" data-act="undoSet" data-i="${i}">Poništi zadnju seriju</button>` : ""}
-      </section>`;
-    }).join("")}
-    <button class="btn block" data-act="finish">Završi trening</button>
-    <button class="btn text danger" data-act="cancelWorkout">Odustani od treninga</button>`;
+          <button class="step" data-act="stepReps" data-i="${i}" data-d="${ex.timed ? 5 : 1}" aria-label="Više">+</button></div>`}`}
+      ${primary}
+      ${!working && !pending && !entryDone(e) ? `<button class="btn text" data-act="saveSet" data-i="${i}">Upiši seriju bez štoperice</button>` : ""}
+      ${e.sets.length && !working ? `<button class="btn text" data-act="undoSet" data-i="${i}">Poništi zadnju seriju</button>` : ""}
+    </section>
+    <div class="wk-foot">
+      <button class="btn text nav" data-act="goPrev" ${a.pos === 0 ? "disabled" : ""} aria-label="Prethodna vježba">‹</button>
+      <div class="next-info">${nextEx ? `<span class="muted">Sljedeće</span><strong>${esc(nextEx.name)}</strong>${nextRec && nextRec.weightKg != null ? `<span class="muted">${kg(nextRec.weightKg)} kg</span>` : ""}`
+        : `<span class="muted">${doneCount === a.order.length ? "Sve vježbe su odrađene" : "Zadnja vježba"}</span>`}</div>
+      <button class="btn text nav" data-act="goNextPos" ${a.pos === a.order.length - 1 ? "disabled" : ""} aria-label="Sljedeća vježba">›</button>
+    </div>
+    <div class="wk-tools">
+      ${!entryDone(e) && !working && nextPos != null ? `<button class="btn text" data-act="later">Sprava zauzeta – kasnije</button>` : ""}
+      <button class="btn text" data-act="overview">Pregled treninga</button>
+      <button class="btn text" data-act="toSummary">Završi trening</button>
+    </div>`;
+}
+function overviewView(a) {
+  const c = cat();
+  return `<div class="wk-head"><span>${esc(a.name)}</span><span class="total">ukupno ${clock(Math.floor((Date.now() - a.startedAt) / 1000))}</span></div>
+    <h1>Pregled treninga</h1>
+    ${a.order.map((idx, p) => { const e = a.entries[idx], ex = c.get(e.exerciseId);
+      return `<button class="ov-row ${p === a.pos ? "cur" : ""}" data-act="jump" data-p="${p}">
+        <span>${p + 1}. ${esc(ex.name)}</span><span class="${entryDone(e) ? "status done" : "muted"}">${entryDone(e) ? "✓ " : ""}${e.sets.length}/${SETS}</span></button>`; }).join("")}
+    <button class="btn secondary block" data-act="backToEx">Natrag na vježbu</button>
+    <button class="btn block" data-act="toSummary">Završi trening</button>`;
+}
+function summaryView(a) {
+  const c = cat(), g = goalOf(state), done = a.entries.filter(e => e.sets.length);
+  const all = a.entries.every(entryDone);
+  return `<h1>${all ? "Trening gotov" : "Završiti trening?"}</h1>
+    <p class="muted">${esc(a.name)} · ${Math.floor((Date.now() - a.startedAt) / 60000)} min · ${done.reduce((n, e) => n + e.sets.length, 0)} serija</p>
+    ${all ? "" : `<div class="card warn">Nisu odrađene sve serije. Spremaju se samo upisane.</div>`}
+    ${done.map(e => { const ex = c.get(e.exerciseId), nr = recommend(ex, g, history(ex.id).map(h => h[1]).concat([e.sets]));
+      return `<section class="card"><h3>${esc(ex.name)}</h3><p class="set-log">${describeSets(e.sets, ex.timed)}</p>
+        <p class="muted">Sljedeći put: ${esc(nr.text)}</p></section>`; }).join("")}
+    <button class="btn block" data-act="saveWorkout">Spremi trening</button>
+    <button class="btn secondary block" data-act="backToEx">Natrag na trening</button>
+    <button class="btn text danger" data-act="cancelWorkout">Odbaci trening bez spremanja</button>`;
 }
 
 function chartSvg(values) {
@@ -584,6 +667,11 @@ function render() {
   $("#overlay").innerHTML = (ui.toast ? `<div class="toast" role="status">${esc(ui.toast)}</div>` : "") + (ui.dialog ? dialogHtml(ui.dialog) : "");
 }
 
+function startRest(a, entry, setsAfter, now) {
+  const last = setsAfter >= SETS;
+  a.timer = { kind: last ? "REST_EX" : "REST_SET", entry, startedAt: now, duration: last ? restEx(state) : restSets(state), signalled: false };
+}
+
 function setupFrom(d) {
   const g = GOALS[d.goal];
   return { goal: d.goal, days: d.daysPerWeek, minutes: d.durationMinutes, restSets: d.restSetsSec ?? g.restSets, restEx: d.restExercisesSec ?? g.restEx,
@@ -640,35 +728,52 @@ document.addEventListener("click", (ev) => {
     start() {
       const w = Number(b.dataset.w), k = Number(b.dataset.k), ids = planForWeek(w).days[k];
       ui.active = { name: `Tjedan ${w + 1} · Trening ${letter(k)}`, plannedDay: dayDate(w, k), startedAt: Date.now(),
-        entries: ids.map(id => ({ exerciseId: id, sets: [] })), timer: null, pending: null };
+        entries: ids.map(id => ({ exerciseId: id, sets: [] })), order: ids.map((_, n) => n), pos: 0, view: "exercise", timer: null, pending: null };
       keepAwake(true); render();
     },
     startSet() { beepPrime(); a.timer = { kind: "WORK", entry: i, startedAt: Date.now() }; a.pending = null; render(); },
     endSet() {
-      const t = a.timer, now = Date.now(), after = a.entries[t.entry].sets.length + 1;
+      const t = a.timer, now = Date.now();
       a.pending = { entry: t.entry, workSeconds: Math.floor((now - t.startedAt) / 1000) };
-      if (cat().get(a.entries[t.entry].exerciseId)?.timed) fresh.add("r-" + t.entry);
-      a.timer = { kind: after >= SETS ? "REST_EX" : "REST_SET", entry: t.entry, startedAt: now, duration: after >= SETS ? restEx(state) : restSets(state), signalled: false };
-      render();
+      startRest(a, t.entry, a.entries[t.entry].sets.length + 1, now);
+      fresh.add("r-" + t.entry); render();
     },
-    skipRest() { if (a.timer && a.timer.kind !== "WORK") a.timer = null; render(); },
     saveSet() {
       const ex = cat().get(a.entries[i].exerciseId), wEl = $("#w-" + i), rEl = $("#r-" + i);
       const reps = parseInt(rEl.value, 10), w = wEl ? parseFloat(wEl.value.replace(",", ".")) : null;
       if (!(reps > 0) || (wEl && !(w >= 0))) { toast("Upišite " + (wEl ? "težinu i " : "") + (ex.timed ? "sekunde." : "ponavljanja.")); return; }
       const work = a.pending && a.pending.entry === i ? a.pending.workSeconds : null;
       a.entries[i].sets.push({ weightKg: wEl ? w : null, reps, workSeconds: work });
-      if (work != null) a.pending = null;
-      fresh.add("r-" + i); render();
+      a.pending = null;
+      if (work == null) startRest(a, i, a.entries[i].sets.length, Date.now()); // serija upisana bez štoperice
+      fresh.add("r-" + i);
+      // Nakon zadnje serije: sam prelazi na sljedeću vježbu (odmor između vježbi teče dalje).
+      if (a.entries[i].sets.length === SETS) { const np = nextUndone(a); if (np == null) a.view = "summary"; else a.pos = np; }
+      render();
     },
-    undoSet() { a.entries[i].sets.pop(); render(); },
-    finish() { ask("Završiti trening?", "Upisane serije se spremaju, a preporuke težina ažuriraju.", "Završi", () => {
+    undoSet() { a.entries[i].sets.pop(); a.pending = null; render(); },
+    stepW() { const el = $("#w-" + i), cur = parseFloat((el.value || "0").replace(",", ".")); el.value = kg(Math.max(0, Math.round(((isNaN(cur) ? 0 : cur) + Number(b.dataset.d)) * 100) / 100)); },
+    goNext() { const np = nextUndone(a); if (np == null) a.view = "summary"; else a.pos = np; render(); },
+    goPrev() { a.pos = Math.max(0, a.pos - 1); render(); },
+    goNextPos() { a.pos = Math.min(a.order.length - 1, a.pos + 1); render(); },
+    later() { // trenutnu vježbu premjesti na kraj redoslijeda
+      const idx = a.order.splice(a.pos, 1)[0]; a.order.push(idx);
+      a.pos = Math.min(a.pos, a.order.length - 1);
+      const here = a.order[a.pos];
+      if (here === idx || entryDone(a.entries[here])) { const np = nextUndone(a); if (np != null) a.pos = np; }
+      toast("Vježba premještena na kraj."); render();
+    },
+    overview() { a.view = "overview"; render(); },
+    jump() { a.pos = Number(b.dataset.p); a.view = "exercise"; render(); },
+    backToEx() { a.view = "exercise"; render(); },
+    toSummary() { a.view = "summary"; render(); },
+    saveWorkout() {
       const entries = a.entries.filter(e => e.sets.length);
       if (entries.length) { state.sessions.push({ id: Date.now(), epochDay: today(), plannedDay: a.plannedDay, workoutName: a.name, entries,
         durationSeconds: Math.floor((Date.now() - a.startedAt) / 1000) }); persist(); }
-      ui.active = null; keepAwake(false); ui.tab = "plan"; if (entries.length) toast("Trening spremljen.");
-    }); },
-    cancelWorkout() { ask("Odustati od treninga?", "Upisane serije neće biti spremljene.", "Odustani", () => { ui.active = null; keepAwake(false); }, "Nastavi trening"); },
+      ui.active = null; keepAwake(false); ui.tab = "plan"; toast(entries.length ? "Trening spremljen." : "Ništa nije upisano – trening nije spremljen.");
+    },
+    cancelWorkout() { ask("Odbaciti trening?", "Upisane serije neće biti spremljene.", "Odbaci", () => { ui.active = null; keepAwake(false); }, "Natrag"); },
     deleteSession() { const id = Number(b.dataset.id); ask("Obrisati trening?", "Brisanje se ne može poništiti.", "Obriši", () => { state.sessions = state.sessions.filter(s => s.id !== id); persist(); }); },
     editPlan() { ui.editing = true; ui.setup = setupFrom(state); render(); },
     loadExample() { ask("Učitati primjer?", "Trenutni podaci u ovom pregledniku zamijenit će se primjerom.", "Učitaj", () => { state = exampleData(); persist(); ui.week = null; }); },
@@ -708,8 +813,9 @@ setInterval(() => {
   const a = ui.active; if (!a) return;
   const t = a.timer;
   if (t && t.kind !== "WORK" && !t.signalled && Date.now() >= t.startedAt + t.duration * 1000) { t.signalled = true; beep(); }
-  const panel = document.querySelector(".timer");
-  if (panel && !ui.dialog) { const tmp = document.createElement("div"); tmp.innerHTML = workoutView(); panel.replaceWith(tmp.querySelector(".timer")); }
+  if (ui.dialog) return;
+  const tmp = document.createElement("div"); tmp.innerHTML = workoutView();
+  [".timer", ".wk-head .total"].forEach(sel => { const old = document.querySelector(sel), nw = tmp.querySelector(sel); if (old && nw) old.replaceWith(nw); });
 }, 250);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && ui.active) { wakeLock = null; keepAwake(true); } });
 
