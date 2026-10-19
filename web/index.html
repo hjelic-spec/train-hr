@@ -406,8 +406,12 @@ const sessionFor = (w, k) => { const day = dayDate(w, k); return state.sessions.
 const lastWeek = () => state.endDay == null ? null : weekOf(state.endDay);
 const inProgram = (w, k) => state.endDay == null || dayDate(w, k) <= state.endDay;
 const programWeeks = () => state.endDay == null ? null : lastWeek() + 1;
-/** Podignuti kilogrami: težina × ponavljanja (bez vježbi na vrijeme i bez vlastite težine; kod bučica težina jedne bučice). */
-function setVolume(ex, st) { return ex && !ex.timed && st.weightKg != null ? st.weightKg * st.reps : 0; }
+/** Vježbe s bučicom u svakoj ruci (jednoručno veslanje: obje strane) – podignuto je dvostruko od upisane težine. */
+const TWO_DUMBBELLS = new Set(["lunge_db", "step_up_db", "rdl_db", "db_row", "db_bench_press", "incline_db_press",
+  "db_shoulder_press", "lateral_raise", "db_curl", "hammer_curl"]);
+const loadFactor = (ex) => ex.kind === "DUMBBELL" && (ex.pair ?? TWO_DUMBBELLS.has(ex.id)) ? 2 : 1;
+/** Podignuti kilogrami: težina × ponavljanja × broj bučica (bez vježbi na vrijeme i bez vlastite težine). */
+function setVolume(ex, st) { return ex && !ex.timed && st.weightKg != null ? st.weightKg * st.reps * loadFactor(ex) : 0; }
 function sessionStats(sess) {
   const c = cat(); let kgSum = 0, sets = 0;
   sess.entries.forEach(e => { const ex = c.get(e.exerciseId); e.sets.forEach(st => { kgSum += setVolume(ex, st); sets++; }); });
@@ -757,7 +761,7 @@ function weeksAnalysis() {
       ${x.ss.map((s, i) => `<button class="ov-row" data-act="openSessionFromAnalysis" data-id="${s.id}"><span>${fmtShort(s.epochDay)} · ${esc(s.workoutName.replace(/^Tjedan \d+ · /, ""))}</span>
         <span class="muted">${fmtInt(x.st[i].kg)} kg · ≈${x.st[i].kcal} kcal</span></button>`).join("")}
     </section>`).join("")}
-    <p class="muted">Kilogrami = težina × ponavljanja (kod bučica težina jedne bučice; bez vježbi s vlastitom težinom i na vrijeme). Kalorije su gruba procjena: 3,5 MET × ${kg(state.bodyWeightKg)} kg × trajanje (2024 Adult Compendium of Physical Activities, šifra 02054).</p>`;
+    <p class="muted">Kilogrami = težina × ponavljanja; kod vježbi s dvije bučice (i jednoručnog veslanja, obje strane) računa se dvostruko. Vježbe s vlastitom težinom i na vrijeme nisu uračunate. Kalorije su gruba procjena: 3,5 MET × ${kg(state.bodyWeightKg)} kg × trajanje (2024 Adult Compendium of Physical Activities, šifra 02054).</p>`;
 }
 
 function exercisesAnalysis() {
@@ -825,6 +829,7 @@ function dialogHtml(dl) {
   if (dl.type === "custom") return `<div class="dialog-back"><div class="dialog" role="dialog" aria-modal="true"><h3>Vlastita vježba – ${GROUP_LABEL[dl.group]}</h3>
     <label class="field">Naziv<input id="cx-name"></label>
     ${chips("cxKind", Object.keys(KINDS), dl.kind, k => KINDS[k][0])}
+    ${dl.kind === "DUMBBELL" ? `<label class="check"><input type="checkbox" id="cx-pair" ${dl.pair !== false ? "checked" : ""}> Dvije bučice (računa se dvostruko)</label>` : ""}
     <label class="check"><input type="checkbox" id="cx-timed" ${dl.timed ? "checked" : ""}> Bilježi se u sekundama</label>
     <div class="actions"><button class="btn text" data-act="dlgNo">Odustani</button><button class="btn" data-act="cxSave">Dodaj</button></div></div></div>`;
   return "";
@@ -863,7 +868,8 @@ document.addEventListener("click", (ev) => {
     addCustom() { ui.dialog = { type: "custom", group: b.dataset.group, kind: "DUMBBELL", timed: false }; render(); },
     cxSave() {
       const name = $("#cx-name").value.trim(); if (!name) return;
-      const ex = { id: "custom_" + Date.now(), name, group: ui.dialog.group, kind: ui.dialog.kind, timed: $("#cx-timed").checked };
+      const ex = { id: "custom_" + Date.now(), name, group: ui.dialog.group, kind: ui.dialog.kind, timed: $("#cx-timed").checked,
+        pair: ui.dialog.kind === "DUMBBELL" ? $("#cx-pair").checked : false };
       ui.setup.custom.push(ex); ui.setup.selected.push(ex.id); ui.dialog = null; render();
     },
     pin() { const id = b.dataset.id, p = ui.setup.pinned; ui.setup.pinned = p.includes(id) ? p.filter(x => x !== id) : p.concat(id); render(); },
@@ -949,7 +955,7 @@ document.addEventListener("change", (ev) => {
 });
 
 function onChip(name, value) {
-  if (name === "cxKind") { ui.dialog.timed = $("#cx-timed").checked; const n = $("#cx-name").value; ui.dialog.kind = value; render(); $("#cx-name").value = n; return; }
+  if (name === "cxKind") { ui.dialog.timed = $("#cx-timed").checked; if ($("#cx-pair")) ui.dialog.pair = $("#cx-pair").checked; const n = $("#cx-name").value; ui.dialog.kind = value; render(); $("#cx-name").value = n; return; }
   const s = ui.setup; if (!s) return;
   if (name === "goal") {
     const old = GOALS[s.goal], g = GOALS[value];
