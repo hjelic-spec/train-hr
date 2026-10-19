@@ -4,7 +4,7 @@ Android aplikacija za personalizirani trening snage za osobe 50+, rad u teretani
 ograničenim brojem sprava (bučice, trap bar, …), progresivno opterećenje, ciljevi,
 analiza napretka i prilagodba sportu (veteransko veslanje, trčanje, biciklizam, opće).
 
-> Status: **NACRT v2 — uključene odluke korisnika, čeka konačnu potvrdu.**
+> Status: **NACRT v3 — uključene odluke korisnika, čeka konačnu potvrdu.**
 
 ## 0. Donesene odluke (19. 10. 2026.)
 
@@ -14,7 +14,8 @@ analiza napretka i prilagodba sportu (veteransko veslanje, trčanje, biciklizam,
 | Android | 14 | `minSdk 34` — pojednostavljuje Health Connect (dio sustava od Androida 14) i Garmin → HC sinkronizaciju. |
 | Mreža | Potpuno offline | Nema backenda, nema AI-komentara u oblaku; "trenerska" analiza isključivo po pravilima. Aplikacija ne traži dozvolu `INTERNET`. |
 | Korisnici | Vi + odabrani korisnici | Distribucija potpisanim APK-om (ručna instalacija) ili Google Play *zatvoreno testiranje*. Svaki korisnik ima podatke samo na svom telefonu; backup = izvoz/uvoz datoteke. |
-| Oprema | Bučice 8–40 kg, lat mašina, privlak sajle (sjedeće veslanje), šipka s pločama (sve težine), trap bar | Biblioteka vježbi i progresija grade se oko ove opreme (vidi 3.1). |
+| Oprema | Bučice 8–40 kg, lat mašina, privlak sajle (sjedeće veslanje), šipka s pločama (sve težine), trap bar, klupa, Concept2 RowErg, BikeErg i SkiErg | Biblioteka vježbi i progresija grade se oko ove opreme (vidi 3.1); ergometri za zagrijavanje, kondiciju i sportske module. |
+| Početni test | **Obavezan** za svakog korisnika, određuje radne težine | Novi odjeljak 3.1a. |
 | Odabir vježbi | Korisnik može **ručno** birati vježbe | Novi način rada "Moj plan" (vidi 3.2a). |
 
 ### Kritičke napomene uz odluke
@@ -64,9 +65,54 @@ Ove brojke koristimo kao **zadane granice** generatora plana, ne kao medicinski 
   - šipka + ploče — najmanja ploča određuje korak (npr. 1,25 kg → +2,5 kg),
   - trap bar (+ ploče),
   - lat mašina (pulldown) i sajla za sjedeće veslanje — korak slaganja utega se upisuje,
-  - dodatno (provjeriti): klupa (ravna/kosa), stalak za čučanj.
-- Početna testiranja (opcionalno): procijenjeni 1RM iz submaksimalnog testa (npr. 8–10 pon.),
-  hvat, sjedni-ustani 30 s, ravnoteža na jednoj nozi.
+  - klupa,
+  - Concept2 RowErg, BikeErg, SkiErg,
+  - dodatno (provjeriti): stalak za čučanj (o njemu ovisi test čučnja šipkom).
+- Početni test je obavezan — vidi 3.1a.
+
+### 3.1a Obavezni početni test (određivanje maksimalnih težina)
+Bez završenog testa aplikacija ne generira plan niti predlaže težine.
+
+**Metoda: procjena 1RM iz submaksimalne serije, ne pravi maksimum.** Izravno testiranje
+maksimuma (1 ponavljanje do otkaza) kod starijih osoba traje dulje i nosi veći rizik ozljede;
+istraživanja na osobama 60+ pokazuju da se 1RM može procijeniti iz 4–10 ponavljanja, uz
+napomenu da točnost ovisi o vježbi, formuli i broju ponavljanja (manje ponavljanja = točnije).
+Zato:
+1. Zagrijavanje 5–8 min (ergometar po izboru) + 2 lagane serije vježbe.
+2. Korisnik bira težinu s kojom može napraviti **4–10 ponavljanja čistom tehnikom** i staje kad
+   bi mu ostalo još ~1 ponavljanje (ne ide do otkaza).
+3. Upis: težina, ponavljanja, RIR. Ako je napravio > 10 ponavljanja → aplikacija traži težu
+   seriju nakon 3 min odmora (najviše 3 pokušaja po vježbi).
+4. Procjena 1RM formulom (Brzycki kao zadana; Epley za usporedbu) → radne težine.
+5. Bol tijekom vježbe → vježba se označava "nije testirana / izbjegavati" i bira se zamjena.
+
+**Testne vježbe (po obrascu pokreta), raspoređene u 2 dana radi umora:**
+| Dan A | Dan B |
+|---|---|
+| Trap bar mrtvo dizanje (hinge/noge) | Goblet čučanj bučicom ili čučanj šipkom* (noge) |
+| Potisak s klupe bučicama ili šipkom (potisak vodoravno) | Sjedeće veslanje na sajli (povlačenje vodoravno) |
+| Lat mašina (povlačenje okomito) | Potisak bučica iznad glave sjedeći (potisak okomito) |
+
+\* čučanj šipkom samo ako postoji stalak i korisnik ima iskustva; goblet je ograničen bučicom
+od 40 kg — ako korisnik napravi > 10 ponavljanja s 40 kg, prelazi se na čučanj šipkom ili
+jednonožnu varijantu.
+
+**Ostale vježbe** dobivaju početnu težinu konzervativno izvedenu iz srodne testirane vježbe
+(npr. jednoručno veslanje iz sajle), a nakon prvog treninga se kalibriraju prema upisanim
+ponavljanjima i RIR-u.
+
+**Funkcionalni testovi (bez opreme, obavezni, ~5 min):** ustajanje sa stolice 30 s, stajanje na
+jednoj nozi (do 30 s po nozi). Služe za praćenje funkcije, ne za težine.
+
+**Ergometarski test (opcionalan, ovisno o sportu):** npr. RowErg 2000 m samo za one koji su
+navikli (veslači), inače submaksimalno 10 min ujednačeno uz upis prosječnog splita/vata i
+pulsa. Rezultati se upisuju ručno s PM5 zaslona.
+
+**Ponovni test:** aplikacija predlaže retest svakih 8–12 tjedana (nakon lakšeg tjedna);
+između testova procijenjeni 1RM se ažurira iz zabilježenih serija.
+
+> Sigurnost: test se otključava tek nakon PAR-Q+ upitnika; uz test stoji upozorenje da se
+> prekida kod boli u prsima, vrtoglavice ili neuobičajenog nedostatka zraka.
 
 ### 3.2 Generator plana
 - Ulazi: broj treninga tjedno (2–4), trajanje (30/45/60 min), fokus (cijelo tijelo / noge /
@@ -131,8 +177,10 @@ U svim načinima vrijedi isto:
 ### 3.7 Integracije
 1. **Health Connect** (faza 4): čitanje treninga (uklj. Garmin veslanje/trčanje/vožnju), pulsa,
    koraka, sna, tjelesne mase; upis sesija snage. Uvjet za Garmin podatke: Android 14+.
-2. **Concept2 Logbook API** (opcija, ako koristite Concept2 ergometar): službeni javni API s
-   OAuth-om; zahtijeva odobrenje Concept2 za produkciju.
+2. **Concept2 ergometri (RowErg/BikeErg/SkiErg)**: Logbook API traži internet → ne uklapa se u
+   offline. Offline put: (a) ručni upis rezultata s PM5 zaslona (MVP), (b) kasnije izravna
+   **Bluetooth veza s PM5** prema službenoj Concept2 specifikaciji (lokalno, bez interneta);
+   Concept2 je daje "kakva jest", bez podrške, i može se mijenjati.
 3. **Garmin direktno**: ne u planu (vidi točku 1).
 4. **AI trener**: odbačeno (odluka: potpuno offline).
 
@@ -159,11 +207,11 @@ sportske oznake), `Program` → `ProgramWeek` → `WorkoutTemplate` → `Exercis
 | Faza | Sadržaj | Rezultat |
 |---|---|---|
 | 0 | Potvrda plana, odgovori na otvorena pitanja, skelet projekta, CI build | Prazna aplikacija se gradi |
-| 1 (MVP) | Profil, PAR-Q+, oprema, biblioteka vježbi (~30–40), generator plana **i ručni odabir vježbi**, vođenje treninga, progresija, povijest, izvoz/uvoz | Upotrebljivo u teretani |
+| 1 (MVP) | Profil, PAR-Q+, **obavezni početni test**, oprema, biblioteka vježbi (~30–40), generator plana **i ručni odabir vježbi**, vođenje treninga, progresija, povijest, izvoz/uvoz | Upotrebljivo u teretani |
 | 2 | Ciljevi, analitika, grafovi, tjedni izvještaj | "Trenerski" pregled |
 | 3 | Sport-moduli + periodizacija po sezoni | Veslanje / trčanje / bicikl |
 | 4 | Health Connect (Garmin preko HC) | Objedinjeni pregled opterećenja |
-| 5 (opcija) | Upute/slike vježbi, Concept2 (zahtijeva internet — samo ako se odustane od strogo offline) | Nadogradnje |
+| 5 (opcija) | Upute/slike vježbi, Bluetooth veza s Concept2 PM5 | Nadogradnje |
 
 ## 6. Otvorena pitanja za vas
 
@@ -171,7 +219,7 @@ Odgovoreno: jezik, Android, offline, korisnici, oprema, ručni odabir vježbi.
 
 Preostalo (nije blokirajuće za fazu 0–1, ima zadane vrijednosti):
 1. Korak bučica između 8 i 40 kg (zadano: 2 kg)?
-2. Imate li klupu (ravnu/kosu) i stalak za čučanj? (zadano: da)
+2. Imate li stalak za čučanj (rack)? (zadano: ne — test čučnja bučicom)
 3. Koji Garmin uređaj? (važno tek za fazu 4)
 4. Ozljede/ograničenja za pravila odabira vježbi? (zadano: nema; unosi se u profilu)
 
@@ -184,3 +232,5 @@ Preostalo (nije blokirajuće za fazu 0–1, ima zadane vrijednosti):
 - Garmin Connect Developer Program: https://developer.garmin.com/gc-developer-program/overview
 - Garmin + Health Connect (Notebookcheck): https://www.notebookcheck.net/Garmin-officially-reveals-Google-Health-Connect-support-for-wearables.1054577.0.html
 - Concept2 Logbook API: https://log.concept2.com/developers/documentation/
+- Concept2 – resursi za razvoj (PM5 specifikacije): https://concept2.com/support/software-development
+- Procjena 1RM kod osoba 60–75 god. (Tan i sur.): https://research.usq.edu.au/item/q3148/establishment-of-the-prediction-equations-of-1rm-skeletal-muscle-strength-in-60-to-75-year-old-chinese-men-and-women
