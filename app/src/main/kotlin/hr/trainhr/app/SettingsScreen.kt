@@ -1,4 +1,4 @@
-package hr.trainhr.app.ui
+package hr.trainhr.app
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -14,17 +14,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import hr.trainhr.app.data.AppData
 import java.time.LocalDate
 
 @Composable
-fun SettingsScreen(
-    vm: AppViewModel,
-    d: AppData,
-    onEditProfile: () -> Unit,
-    onEditEquipment: () -> Unit,
-    onEditReadiness: () -> Unit,
-) {
+fun SettingsScreen(vm: AppViewModel, onEditPlan: () -> Unit) {
     var confirmImport by remember { mutableStateOf(false) }
     val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         uri?.let { vm.export(it) }
@@ -34,38 +27,28 @@ fun SettingsScreen(
     }
 
     ScreenColumn {
-        Text("Postavke", style = MaterialTheme.typography.headlineSmall)
-        OutlinedButton(onClick = onEditProfile, modifier = Modifier.fillMaxWidth()) { Text("Profil i ograničenja") }
-        OutlinedButton(onClick = onEditEquipment, modifier = Modifier.fillMaxWidth()) { Text("Oprema i težine") }
-        OutlinedButton(onClick = onEditReadiness, modifier = Modifier.fillMaxWidth()) { Text("Upitnik spremnosti") }
-
-        SectionTitle("Sigurnosna kopija")
+        Title("Postavke")
+        OutlinedButton(onClick = onEditPlan, modifier = Modifier.fillMaxWidth()) { Text("Promijeni broj treninga i vježbe") }
+        Section("Sigurnosna kopija")
         Text(
-            "Aplikacija ne koristi internet; podaci su samo na ovom telefonu. Izvezite ih povremeno " +
-                "u datoteku i spremite na sigurno mjesto." +
-                (d.lastExportEpochDay?.let { " Zadnji izvoz: ${formatDate(it)}." } ?: " Izvoz još nije napravljen."),
+            "Podaci su samo na ovom telefonu (aplikacija ne koristi internet). Povremeno ih izvezite u datoteku.",
             style = MaterialTheme.typography.bodyMedium,
         )
         OutlinedButton(onClick = { exporter.launch("trening-${LocalDate.now()}.json") }, modifier = Modifier.fillMaxWidth()) {
             Text("Izvoz podataka")
         }
         OutlinedButton(onClick = { confirmImport = true }, modifier = Modifier.fillMaxWidth()) { Text("Uvoz podataka") }
-
-        SectionTitle("O aplikaciji")
-        Text(
-            "Preporuke se temelje na smjernicama ACSM-a (2011. za starije osobe; 2026. za trening snage) i " +
-                "ne zamjenjuju liječnika ni trenera. Procjena 1RM: Brzycki (do 10 ponavljanja) i Epley.",
-            style = MaterialTheme.typography.bodyMedium,
-        )
     }
 
     if (confirmImport) {
         AlertDialog(
             onDismissRequest = { confirmImport = false },
             title = { Text("Uvesti podatke?") },
-            text = { Text("Uvoz zamjenjuje SVE trenutne podatke na ovom telefonu podacima iz datoteke.") },
+            text = { Text("Uvoz zamjenjuje sve trenutne podatke podacima iz datoteke.") },
             confirmButton = {
-                TextButton(onClick = { confirmImport = false; importer.launch(arrayOf("application/json", "*/*")) }) { Text("Odaberi datoteku") }
+                TextButton(onClick = { confirmImport = false; importer.launch(arrayOf("application/json", "*/*")) }) {
+                    Text("Odaberi datoteku")
+                }
             },
             dismissButton = { TextButton(onClick = { confirmImport = false }) { Text("Odustani") } },
         )

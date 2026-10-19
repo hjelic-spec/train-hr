@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Android sigurnosna kopija (Google račun) i prijenos uređaja uključuju podatke aplikacije. -->
+<!-- Prijenos na novi telefon uključuje podatke; sigurnosna kopija u oblak je isključena. -->
 <data-extraction-rules>
     <cloud-backup>
-        <include domain="file" path="." />
+        <exclude domain="file" path="." />
     </cloud-backup>
     <device-transfer>
         <include domain="file" path="." />
