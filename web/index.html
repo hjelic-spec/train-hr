@@ -137,6 +137,19 @@ nav.tabs button[aria-current="page"] { color: var(--accent); box-shadow: inset 0
 .seg button[aria-selected="true"] { background: var(--surface); color: var(--fg); box-shadow: 0 1px 2px rgb(0 0 0 / .12); }
 svg.bars { width: 100%; height: auto; display: block; }
 .ov-row.sess { align-items: center; }
+.art { display: flex; align-items: center; gap: 6px; margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 8px; justify-content: center; }
+.art .frame { flex: 1; max-width: 48%; display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; }
+.art figcaption { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.art .arrow { color: var(--muted); font-size: 20px; }
+.pose { width: 100%; height: auto; max-height: 112px; }
+.pose .limb { fill: none; stroke: var(--fg); stroke-width: 4.5; stroke-linecap: round; stroke-linejoin: round; }
+.pose .headc { fill: var(--fg); }
+.pose .ground { stroke: var(--line); stroke-width: 2; }
+.pose .eq-fill { fill: var(--accent); }
+.pose .eq-line { stroke: var(--accent); stroke-width: 1.5; fill: none; }
+.pose .eq-thick { stroke: var(--accent); stroke-width: 5; fill: none; stroke-linecap: round; }
+.pose .eq-box { fill: none; stroke: var(--accent); stroke-width: 2; }
+.cue { font-size: 15px; margin: 0; }
 .card.active { border-color: var(--work); box-shadow: 0 0 0 2px var(--work) inset; }
 svg.chart { width: 100%; height: 90px; display: block; }
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(76px + env(safe-area-inset-bottom, 0px)); background: var(--fg); color: var(--bg);
@@ -347,6 +360,141 @@ function recommend(ex, goal, history) {
 }
 </script>
 
+
+<script id="art">
+// ===== Ilustracije vježbi: jednostavne figure (bočni pogled, lice udesno), početak → kraj =====
+// Koordinate u kutiji 100×100, pod je y = 92. Svaki položaj: glava, linije (udovi, trup) i oprema.
+const S = (o) => { // bočni pogled iz imenovanih zglobova
+  const lines = [[o.sh, o.hip]];
+  (o.legs || []).forEach(l => lines.push([o.hip, ...l]));
+  (o.arms || []).forEach(a => lines.push([o.sh, ...a]));
+  return { head: o.head, lines: lines.concat(o.extra || []), eq: o.eq || [] };
+};
+const STAND = { head: [51, 21], sh: [50, 30], hip: [50, 54], legs: [[[50, 72], [50, 90], [57, 91]]] };
+const stand = (arms, eq, extra) => S({ ...STAND, arms, eq, extra });
+const HANG = [[50, 43], [51, 55]];
+const BENCH = (x, w, y = 66) => ({ bench: [x, y, w] });
+const FRONT = (arms, eq) => ({ head: [50, 21], lines: [[[50, 26], [50, 54]], [[41, 30], [59, 30]], [[45, 54], [55, 54]],
+  [[45, 54], [45, 72], [44, 90], [40, 91]], [[55, 54], [55, 72], [56, 90], [60, 91]], ...arms], eq });
+
+const EXERCISE_ART = {
+  back_squat: { cue: "Šipka na gornjem dijelu leđa, koljena prate prste, spuštanje s ravnim leđima.", frames: [
+    stand([[[42, 36], [46, 31]]], [{ plate: [45, 32] }]),
+    S({ head: [55, 39], sh: [52, 47], hip: [40, 68], legs: [[[57, 72], [50, 90], [57, 91]]], arms: [[[43, 53], [49, 48]]], eq: [{ plate: [49, 47] }] })] },
+  trap_bar_deadlift: { cue: "Stanite u sredinu trap bara, ravna leđa, gurnite pod nogama i ustanite.", frames: [
+    S({ head: [62, 36], sh: [58, 44], hip: [42, 64], legs: [[[56, 70], [50, 90], [57, 91]]], arms: [[[58, 57], [57, 69]]], eq: [{ plate: [57, 80] }] }),
+    stand([HANG[0], HANG[1]].length ? [HANG] : [], [{ plate: [51, 66] }])] },
+  rdl_barbell: { cue: "Koljena blago savijena, kukovi idu unatrag, šipka klizi uz noge.", frames: [
+    stand([[[51, 43], [53, 56]]], [{ plate: [54, 57] }]),
+    S({ head: [70, 40], sh: [62, 44], hip: [40, 56], legs: [[[52, 72], [50, 90], [57, 91]]], arms: [[[62, 57], [61, 69]]], eq: [{ plate: [61, 71] }] })] },
+  goblet_squat: { cue: "Bučica uz prsa, trup uspravan, laktovi između koljena.", frames: [
+    stand([[[52, 44], [55, 36]]], [{ db: [57, 35], v: 1 }]),
+    S({ head: [50, 38], sh: [48, 46], hip: [40, 69], legs: [[[57, 72], [50, 90], [57, 91]]], arms: [[[51, 58], [55, 50]]], eq: [{ db: [57, 49], v: 1 }] })] },
+  lunge_db: { cue: "Korak, spustite stražnje koljeno prema podu; prednje koljeno iznad stopala.", frames: [
+    stand([HANG], [{ db: [51, 56] }]),
+    S({ head: [49, 39], sh: [48, 48], hip: [48, 72], legs: [[[66, 72], [66, 90], [73, 91]], [[40, 88], [25, 86], [21, 91]]], arms: [[[48, 61], [48, 73]]], eq: [{ db: [48, 74] }] })] },
+  step_up_db: { cue: "Cijelo stopalo na klupi, gurnite prednjom nogom, polako se spustite.", frames: [
+    S({ head: [50, 23], sh: [49, 32], hip: [45, 56], legs: [[[61, 58], [60, 74], [67, 74]], [[44, 73], [42, 90], [49, 91]]], arms: [[[48, 45], [48, 57]]], eq: [{ db: [48, 58] }, { box: [54, 74, 28, 18] }] }),
+    S({ head: [63, 5], sh: [62, 14], hip: [62, 38], legs: [[[62, 56], [62, 74], [69, 74]], [[56, 55], [52, 71], [50, 76]]], arms: [[[62, 27], [62, 39]]], eq: [{ db: [62, 40] }, { box: [54, 74, 28, 18] }] })] },
+  rdl_db: { cue: "Koljena blago savijena, kukovi idu unatrag, bučice klize uz noge.", frames: [
+    stand([[[51, 43], [53, 56]]], [{ db: [54, 57] }]),
+    S({ head: [70, 40], sh: [62, 44], hip: [40, 56], legs: [[[52, 72], [50, 90], [57, 91]]], arms: [[[62, 57], [61, 69]]], eq: [{ db: [61, 70] }] })] },
+  calf_raise_db: { cue: "Podignite se na prste, kratko zadržite, polako spustite pete.", frames: [
+    stand([HANG], [{ db: [51, 56] }]),
+    S({ head: [52, 15], sh: [51, 24], hip: [51, 48], legs: [[[51, 66], [52, 84], [58, 91]]], arms: [[[51, 37], [52, 49]]], eq: [{ db: [52, 50] }] })] },
+  lat_pulldown: { cue: "Povucite šipku do gornjeg dijela prsa, lopatice dolje i nazad.", frames: [
+    S({ head: [44, 37], sh: [43, 46], hip: [45, 70], legs: [[[62, 70], [63, 90], [70, 91]]], arms: [[[45, 34], [47, 22]]], eq: [{ seat: [36, 72, 18] }, { pad: [62, 64] }, { cable: [[47, 22], [47, -6]] }, { bar: [47, 22] }] }),
+    S({ head: [44, 37], sh: [43, 46], hip: [45, 70], legs: [[[62, 70], [63, 90], [70, 91]]], arms: [[[39, 58], [47, 48]]], eq: [{ seat: [36, 72, 18] }, { pad: [62, 64] }, { cable: [[47, 48], [47, -6]] }, { bar: [47, 48] }] })] },
+  cable_row: { cue: "Uspravan trup, povucite ručku do trbuha, skupite lopatice.", frames: [
+    S({ head: [37, 41], sh: [36, 50], hip: [35, 74], legs: [[[52, 68], [68, 74], [72, 70]]], arms: [[[48, 52], [60, 54]]], eq: [{ seat: [24, 76, 24] }, { plateStand: [74, 66] }, { cable: [[60, 54], [80, 70]] }] }),
+    S({ head: [36, 41], sh: [36, 50], hip: [35, 74], legs: [[[52, 68], [68, 74], [72, 70]]], arms: [[[26, 58], [38, 62]]], eq: [{ seat: [24, 76, 24] }, { plateStand: [74, 66] }, { cable: [[38, 62], [80, 70]] }] })] },
+  db_row: { cue: "Ruka i koljeno na klupi, ravna leđa, povucite bučicu prema boku.", frames: [
+    S({ head: [82, 50], sh: [74, 54], hip: [50, 58], legs: [[[46, 74], [44, 90], [51, 91]], [[64, 69], [48, 70]]], arms: [[[77, 62], [80, 70]], [[73, 67], [72, 79]]], eq: [{ db: [72, 80] }, { bench: [46, 70, 40] }] }),
+    S({ head: [82, 50], sh: [74, 54], hip: [50, 58], legs: [[[46, 74], [44, 90], [51, 91]], [[64, 69], [48, 70]]], arms: [[[77, 62], [80, 70]], [[64, 46], [66, 58]]], eq: [{ db: [66, 59] }, { bench: [46, 70, 40] }] })] },
+  barbell_row: { cue: "Pretklon oko 45°, ravna leđa, povucite šipku do trbuha.", frames: [
+    S({ head: [69, 36], sh: [62, 42], hip: [42, 56], legs: [[[50, 72], [48, 90], [55, 91]]], arms: [[[62, 55], [62, 67]]], eq: [{ plate: [62, 69] }] }),
+    S({ head: [69, 36], sh: [62, 42], hip: [42, 56], legs: [[[50, 72], [48, 90], [55, 91]]], arms: [[[52, 48], [58, 58]]], eq: [{ plate: [58, 59] }] })] },
+  bench_press: { cue: "Lopatice skupljene, spustite šipku do prsa i potisnite gore. Uz stalak ili pomagača.", frames: [
+    S({ head: [24, 59], sh: [32, 62], hip: [56, 63], legs: [[[72, 70], [74, 90], [80, 91]]], arms: [[[33, 50], [34, 38]]], eq: [{ bench: [20, 66, 48] }, { plate: [34, 37] }] }),
+    S({ head: [24, 59], sh: [32, 62], hip: [56, 63], legs: [[[72, 70], [74, 90], [80, 91]]], arms: [[[36, 73], [38, 61]]], eq: [{ bench: [20, 66, 48] }, { plate: [38, 54] }] })] },
+  db_bench_press: { cue: "Spustite bučice do razine prsa, potisnite ih gore iznad ramena.", frames: [
+    S({ head: [24, 59], sh: [32, 62], hip: [56, 63], legs: [[[72, 70], [74, 90], [80, 91]]], arms: [[[33, 50], [34, 38]]], eq: [{ bench: [20, 66, 48] }, { db: [34, 37] }] }),
+    S({ head: [24, 59], sh: [32, 62], hip: [56, 63], legs: [[[72, 70], [74, 90], [80, 91]]], arms: [[[36, 73], [38, 61]]], eq: [{ bench: [20, 66, 48] }, { db: [38, 60] }] })] },
+  incline_db_press: { cue: "Klupa nagnuta 30–45°, potisak bučica iznad ramena.", frames: [
+    S({ head: [28, 43], sh: [34, 50], hip: [52, 66], legs: [[[66, 72], [70, 90], [76, 91]]], arms: [[[37, 38], [40, 26]]], eq: [{ incline: [[26, 44], [50, 70]] }, { db: [40, 25] }] }),
+    S({ head: [28, 43], sh: [34, 50], hip: [52, 66], legs: [[[66, 72], [70, 90], [76, 91]]], arms: [[[30, 60], [36, 49]]], eq: [{ incline: [[26, 44], [50, 70]] }, { db: [37, 47] }] })] },
+  push_up: { cue: "Tijelo ravno od glave do peta, spustite prsa prema podu. Lakše: ruke na klupi.", frames: [
+    S({ head: [78, 62], sh: [70, 66], hip: [46, 72], legs: [[[28, 80], [12, 87], [8, 91]]], arms: [[[70, 78], [70, 90]]] }),
+    S({ head: [78, 77], sh: [70, 81], hip: [46, 84], legs: [[[28, 87], [12, 89], [8, 91]]], arms: [[[61, 86], [70, 90]]] })] },
+  db_shoulder_press: { cue: "Sjedeći, leđa uspravna, bučice od ramena ravno gore.", frames: [
+    S({ head: [46, 35], sh: [45, 44], hip: [45, 68], legs: [[[62, 68], [63, 90], [70, 91]]], arms: [[[47, 56], [48, 44]]], eq: [{ seat: [32, 70, 26] }, { db: [48, 43] }] }),
+    S({ head: [46, 35], sh: [45, 44], hip: [45, 68], legs: [[[62, 68], [63, 90], [70, 91]]], arms: [[[46, 32], [47, 20]]], eq: [{ seat: [32, 70, 26] }, { db: [47, 19] }] })] },
+  barbell_ohp: { cue: "Stegnite trbuh i stražnjicu, šipka od ramena ravno iznad glave.", frames: [
+    stand([[[55, 41], [55, 29]]], [{ plate: [55, 29] }]),
+    stand([[[51, 18], [51, 6]]], [{ plate: [51, 5] }])] },
+  lateral_raise: { cue: "Laktovi blago savijeni, podignite ruke u stranu do visine ramena.", front: true, frames: [
+    FRONT([[[41, 30], [39, 43], [38, 55]], [[59, 30], [61, 43], [62, 55]]], [{ db: [38, 56], v: 1 }, { db: [62, 56], v: 1 }]),
+    FRONT([[[41, 30], [29, 32], [17, 32]], [[59, 30], [71, 32], [83, 32]]], [{ db: [16, 32], v: 1 }, { db: [84, 32], v: 1 }])] },
+  face_pull: { cue: "Uže na visini glave, povucite prema licu, laktovi visoko i u stranu.", frames: [
+    stand([[[62, 29], [74, 28]]], [{ cable: [[74, 28], [94, 24]] }]),
+    stand([[[42, 24], [54, 22]]], [{ cable: [[54, 22], [94, 24]] }])] },
+  db_curl: { cue: "Laktovi uz tijelo, savijte ruke bez njihanja trupom.", frames: [
+    stand([HANG], [{ db: [52, 56] }]), stand([[[51, 43], [58, 32]]], [{ db: [59, 31] }])] },
+  hammer_curl: { cue: "Dlanovi okrenuti jedan prema drugom, laktovi uz tijelo.", frames: [
+    stand([HANG], [{ db: [52, 56], v: 1 }]), stand([[[51, 43], [58, 32]]], [{ db: [59, 31], v: 1 }])] },
+  barbell_curl: { cue: "Laktovi uz tijelo, podignite šipku bez zamaha.", frames: [
+    stand([[[51, 43], [53, 55]]], [{ plate: [54, 56] }]), stand([[[51, 43], [58, 32]]], [{ plate: [59, 31] }])] },
+  triceps_pushdown: { cue: "Laktovi uz tijelo, ispružite ruke prema dolje.", frames: [
+    stand([[[50, 43], [59, 36]]], [{ cable: [[59, 36], [66, -6]] }, { bar: [59, 36] }]),
+    stand([[[50, 43], [54, 55]]], [{ cable: [[54, 55], [66, -6]] }, { bar: [54, 55] }])] },
+  db_triceps_ext: { cue: "Jedna bučica iza glave, nadlaktice uz glavu, ispružite ruke gore.", frames: [
+    stand([[[52, 18], [42, 23]]], [{ db: [41, 24], v: 1 }]), stand([[[52, 18], [53, 6]]], [{ db: [53, 4], v: 1 }])] },
+  plank: { cue: "Podlaktice ispod ramena, tijelo ravno, trbuh stegnut. Držite.", frames: [
+    S({ head: [76, 74], sh: [68, 78], hip: [44, 82], legs: [[[26, 85], [9, 88], [5, 91]]], arms: [[[68, 90], [80, 90]]] })] },
+  side_plank: { cue: "Lakat ispod ramena, kukovi podignuti, tijelo u ravnoj liniji. Pa druga strana.", frames: [
+    { head: [77, 70], lines: [[[70, 76], [42, 82], [10, 89]], [[70, 76], [70, 89], [80, 89]], [[70, 76], [72, 52]], [[10, 89], [6, 91]]], eq: [] }] },
+  pallof_press: { cue: "Stanite bočno uz sajlu, ručka na prsima, potisnite naprijed i ne dajte da vas zarotira.", frames: [
+    stand([[[46, 40], [56, 40]]], [{ cable: [[56, 40], [6, 40]], dash: 1 }]),
+    stand([[[61, 33], [73, 36]]], [{ cable: [[73, 36], [6, 40]], dash: 1 }])] },
+  dead_bug: { cue: "Leđa na podu, polako spustite suprotnu ruku i nogu, pa zamijenite strane.", frames: [
+    { head: [22, 84], lines: [[[30, 86], [54, 86]], [[30, 86], [30, 74], [30, 62]], [[54, 86], [54, 68], [70, 68]]], eq: [] },
+    { head: [22, 84], lines: [[[30, 86], [54, 86]], [[30, 86], [30, 74], [30, 62]], [[30, 86], [19, 82], [8, 80]], [[54, 86], [54, 68], [70, 68]], [[54, 86], [72, 83], [89, 85]]], eq: [] }] },
+  farmer_carry: { cue: "Bučice uz tijelo, uspravno, ramena dolje; hodajte kratkim koracima.", frames: [
+    S({ ...STAND, legs: [[[56, 72], [58, 90], [65, 91]], [[45, 72], [40, 90], [47, 91]]], arms: [HANG], eq: [{ db: [51, 56] }] }),
+    S({ ...STAND, legs: [[[45, 72], [42, 90], [49, 91]], [[56, 72], [60, 88], [65, 91]]], arms: [HANG], eq: [{ db: [51, 56] }] })] },
+};
+EXERCISE_ART.lat_pulldown_close = { ...EXERCISE_ART.lat_pulldown, cue: "Uski hvat, povucite ručku do prsa, laktovi uz tijelo." };
+
+const pts = (a) => a.map(p => p.join(",")).join(" ");
+function poseSvg(pose, label) {
+  const eq = pose.eq.map(e => {
+    if (e.plate) return `<circle cx="${e.plate[0]}" cy="${e.plate[1]}" r="9" class="eq-fill"/>`;
+    if (e.db) return e.v ? `<rect x="${e.db[0] - 2.5}" y="${e.db[1] - 5}" width="5" height="10" rx="1.5" class="eq-fill"/>`
+                         : `<rect x="${e.db[0] - 5}" y="${e.db[1] - 2.5}" width="10" height="5" rx="1.5" class="eq-fill"/>`;
+    if (e.bar) return `<rect x="${e.bar[0] - 6}" y="${e.bar[1] - 1.5}" width="12" height="3" rx="1.5" class="eq-fill"/>`;
+    if (e.cable) return `<polyline points="${pts(e.cable)}" class="eq-line" ${e.dash ? 'stroke-dasharray="3 3"' : ""}/><circle cx="${e.cable[1][0]}" cy="${e.cable[1][1]}" r="2.5" class="eq-fill"/>`;
+    if (e.bench) { const [x, y, w] = e.bench; return `<rect x="${x}" y="${y}" width="${w}" height="5" rx="1" class="eq-fill"/><line x1="${x + 4}" y1="${y + 5}" x2="${x + 4}" y2="92" class="eq-line"/><line x1="${x + w - 4}" y1="${y + 5}" x2="${x + w - 4}" y2="92" class="eq-line"/>`; }
+    if (e.seat) { const [x, y, w] = e.seat; return `<rect x="${x}" y="${y}" width="${w}" height="5" rx="1" class="eq-fill"/><line x1="${x + w / 2}" y1="${y + 5}" x2="${x + w / 2}" y2="92" class="eq-line"/>`; }
+    if (e.box) { const [x, y, w, h] = e.box; return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="1" class="eq-box"/>`; }
+    if (e.pad) return `<circle cx="${e.pad[0]}" cy="${e.pad[1]}" r="3.5" class="eq-fill"/>`;
+    if (e.incline) return `<polyline points="${pts(e.incline)}" class="eq-thick"/><line x1="${e.incline[1][0]}" y1="${e.incline[1][1]}" x2="${e.incline[1][0]}" y2="92" class="eq-line"/>`;
+    if (e.plateStand) return `<rect x="${e.plateStand[0]}" y="${e.plateStand[1]}" width="4" height="26" rx="1" class="eq-fill"/>`;
+    return "";
+  }).join("");
+  return `<svg viewBox="0 -10 100 106" class="pose" role="img" aria-label="${label}">
+    <line x1="2" y1="92" x2="98" y2="92" class="ground"/>
+    ${eq}
+    ${pose.lines.map(l => `<polyline points="${pts(l)}" class="limb"/>`).join("")}
+    <circle cx="${pose.head[0]}" cy="${pose.head[1]}" r="6" class="headc"/>
+  </svg>`;
+}
+function exerciseArt(id) {
+  const a = EXERCISE_ART[id]; if (!a) return "";
+  const labels = a.frames.length === 1 ? ["Položaj"] : ["Početak", "Kraj"];
+  return `<figure class="art">${a.frames.map((f, k) => `<div class="frame">${poseSvg(f, labels[k])}<figcaption>${labels[k]}</figcaption></div>`).join(a.frames.length > 1 ? `<span class="arrow" aria-hidden="true">→</span>` : "")}</figure>
+    <p class="cue">${a.cue}</p>`;
+}
+</script>
 
 <script>
 // ===== Pregled sučelja (stanje u pregledniku; nije pravi spremnik podataka) =====
@@ -591,6 +739,7 @@ function workoutView() {
     <div class="progress" aria-hidden="true">${a.order.map((idx, p) => `<span class="${entryDone(a.entries[idx]) ? "done" : p === a.pos ? "cur" : ""}"></span>`).join("")}</div>
     <section class="focus">
       <h1>${esc(ex.name)}</h1>
+      ${exerciseArt(ex.id)}
       <p class="muted">${SETS} × ${range}${state.pinned.includes(ex.id) ? ` · <span class="pin-tag">stalna</span>` : ""}</p>
       ${r ? `<p>${esc(r.text)}</p>` : ""}
       ${last ? `<p class="muted">Prošli put (${fmtDate(last[0])}): ${describeSets(last[1], ex.timed)}</p>` : ""}
