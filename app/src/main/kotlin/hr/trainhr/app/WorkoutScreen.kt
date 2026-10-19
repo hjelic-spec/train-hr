@@ -142,9 +142,10 @@ private fun Focus(vm: AppViewModel, d: AppData, a: ActiveWorkout, now: Long) {
         ex.timed -> TIMED_MIN_SEC
         else -> d.goal.repMax
     }
-    val key = "$i-${e.sets.size}-${pending?.workSeconds}"
-    var weight by remember(key) { mutableStateOf(defW?.let { kg(it) } ?: "") }
-    var reps by remember(key) { mutableStateOf(defR.toString()) }
+    // Polja se nanovo popunjavaju za svaku novu seriju; ponavljanja i nakon mjerenja vremena kod vježbi na vrijeme.
+    val setKey = "$i-${e.sets.size}"
+    var weight by remember(setKey) { mutableStateOf(defW?.let { kg(it) } ?: "") }
+    var reps by remember(setKey, if (ex.timed) pending?.workSeconds else null) { mutableStateOf(defR.toString()) }
     val showW = ex.kind != LoadKind.BODYWEIGHT
 
     fun save() {
