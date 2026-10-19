@@ -22,6 +22,10 @@ data class AppData(
     val goal: Goal = Goal.HYPERTROPHY,
     val daysPerWeek: Int = 3,
     val durationMinutes: Int = 60,
+    /** Odmor između serija (s); null = preporuka za odabrani cilj. */
+    val restSetsSec: Int? = null,
+    /** Odmor između vježbi (s); null = preporuka za odabrani cilj. */
+    val restExercisesSec: Int? = null,
     /** Odabrane vježbe, redoslijedom odabira. */
     val selected: List<String> = emptyList(),
     val customExercises: List<Exercise> = emptyList(),
@@ -30,6 +34,9 @@ data class AppData(
     val omitted: List<String> = emptyList(),
     val sessions: List<Session> = emptyList(),
 )
+
+val AppData.restSets: Int get() = restSetsSec ?: goal.restBetweenSetsSec
+val AppData.restExercises: Int get() = restExercisesSec ?: goal.restBetweenExercisesSec
 
 @Serializable
 data class Session(

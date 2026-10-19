@@ -28,13 +28,17 @@ import hr.trainhr.core.Exercise
 import hr.trainhr.core.LoadKind
 import hr.trainhr.core.MuscleGroup
 import hr.trainhr.core.DURATIONS
+import hr.trainhr.core.REST_EXERCISE_OPTIONS
+import hr.trainhr.core.REST_SET_OPTIONS
 import hr.trainhr.core.Goal
 import hr.trainhr.core.SETS_PER_EXERCISE
 import hr.trainhr.core.Timing
 
 @Composable
-fun SetupScreen(d: AppData, onSave: (Goal, Int, Int, List<String>, List<Exercise>) -> Unit, onCancel: (() -> Unit)?) {
+fun SetupScreen(d: AppData, onSave: (SetupChoice) -> Unit, onCancel: (() -> Unit)?) {
     var goal by remember { mutableStateOf(d.goal) }
+    var restSets by remember { mutableStateOf(d.restSets) }
+    var restExercises by remember { mutableStateOf(d.restExercises) }
     var days by remember { mutableStateOf(d.daysPerWeek) }
     var minutes by remember { mutableStateOf(d.durationMinutes) }
     val selected = remember { mutableStateListOf<String>().apply { addAll(d.selected) } }
@@ -45,17 +49,34 @@ fun SetupScreen(d: AppData, onSave: (Goal, Int, Int, List<String>, List<Exercise
     ScreenColumn {
         Title("Postavke plana")
         Section("Cilj")
-        Chips(Goal.entries, goal, { it.label }) { goal = it }
+        Chips(Goal.entries, goal, { it.label }) { g ->
+            // Odmori koji su bili na preporuci prate novi cilj; ručno podešeni ostaju.
+            if (restSets == goal.restBetweenSetsSec) restSets = g.restBetweenSetsSec
+            if (restExercises == goal.restBetweenExercisesSec) restExercises = g.restBetweenExercisesSec
+            goal = g
+        }
+        Text("$SETS_PER_EXERCISE serije × ${goal.repLabel} ponavljanja", style = MaterialTheme.typography.bodyMedium)
+
+        Section("Odmor između serija")
+        Chips(REST_SET_OPTIONS, restSets, { restLabel(it) + if (it == goal.restBetweenSetsSec) " ★" else "" }) { restSets = it }
+        Section("Odmor između vježbi")
+        Chips(REST_EXERCISE_OPTIONS, restExercises, { restLabel(it) + if (it == goal.restBetweenExercisesSec) " ★" else "" }) { restExercises = it }
         Text(
-            "$SETS_PER_EXERCISE serije × ${goal.repLabel} ponavljanja · odmor između serija ${goal.restBetweenSetsSec} s, " +
-                "između vježbi ${goal.restBetweenExercisesSec} s",
+            "★ preporuka za ${goal.label.lowercase()}: ${restLabel(goal.restBetweenSetsSec)} između serija, " +
+                "${restLabel(goal.restBetweenExercisesSec)} između vježbi.",
             style = MaterialTheme.typography.bodyMedium,
         )
+        if (restSets != goal.restBetweenSetsSec || restExercises != goal.restBetweenExercisesSec) {
+            TextButton(onClick = {
+                restSets = goal.restBetweenSetsSec
+                restExercises = goal.restBetweenExercisesSec
+            }) { Text("Vrati preporučene odmore") }
+        }
         Section("Broj treninga tjedno")
         Chips((1..5).toList(), days, { "$it" }) { days = it }
         Section("Trajanje treninga")
         Chips(DURATIONS, minutes, { "$it min" }) { minutes = it }
-        val capacity = Timing.capacity(minutes, goal)
+        val capacity = Timing.capacity(minutes, goal, restSets, restExercises)
         Text(
             "U $minutes min stane do $capacity vježbi po treningu (uključeno 5 min zagrijavanja).",
             style = MaterialTheme.typography.bodyMedium,
@@ -82,7 +103,7 @@ fun SetupScreen(d: AppData, onSave: (Goal, Int, Int, List<String>, List<Exercise
             }
         }
         Button(
-            onClick = { onSave(goal, days, minutes, selected.toList(), custom.toList()) },
+            onClick = { onSave(SetupChoice(goal, days, minutes, restSets, restExercises, selected.toList(), custom.toList())) },
             enabled = selected.isNotEmpty(),
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
         ) { Text("Složi plan") }

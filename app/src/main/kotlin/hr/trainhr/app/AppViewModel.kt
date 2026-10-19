@@ -19,6 +19,17 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
+/** Izbor s ekrana postavki plana. */
+data class SetupChoice(
+    val goal: Goal,
+    val days: Int,
+    val minutes: Int,
+    val restSets: Int,
+    val restExercises: Int,
+    val selected: List<String>,
+    val custom: List<Exercise>,
+)
+
 enum class TimerKind { WORK, REST_SET, REST_EXERCISE }
 
 /** Štoperica: rad mjeri vrijeme od početka; odmor odbrojava [durationSec]. */
@@ -56,12 +67,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { repo.update(transform) }
     }
 
-    fun saveSetup(goal: Goal, days: Int, minutes: Int, selected: List<String>, custom: List<Exercise>) = save { d ->
-        val catalog = Catalog(custom)
-        val result = PlanBuilder.build(days, selected.mapNotNull { catalog[it] }, Timing.capacity(minutes, goal))
+    fun saveSetup(s: SetupChoice) = save { d ->
+        val catalog = Catalog(s.custom)
+        val capacity = Timing.capacity(s.minutes, s.goal, s.restSets, s.restExercises)
+        val result = PlanBuilder.build(s.days, s.selected.mapNotNull { catalog[it] }, capacity)
         d.copy(
-            goal = goal, daysPerWeek = days, durationMinutes = minutes, selected = selected,
-            customExercises = custom, plan = result.workouts, omitted = result.omitted.map { it.id },
+            goal = s.goal, daysPerWeek = s.days, durationMinutes = s.minutes,
+            // Spremamo samo odstupanje od preporuke, da promjena cilja vrati preporučene odmore.
+            restSetsSec = s.restSets.takeIf { it != s.goal.restBetweenSetsSec },
+            restExercisesSec = s.restExercises.takeIf { it != s.goal.restBetweenExercisesSec },
+            selected = s.selected,
+            customExercises = s.custom, plan = result.workouts, omitted = result.omitted.map { it.id },
         )
     }
 
@@ -102,12 +118,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val t = a.timer ?: return@update a
         if (t.kind != TimerKind.WORK) return@update a
         val now = System.currentTimeMillis()
-        val goal = data.value.goal
+        val d = data.value
         val setsAfter = a.entries[t.entryIndex].sets.size + 1
         val rest = if (setsAfter >= SETS_PER_EXERCISE) {
-            TimerState(TimerKind.REST_EXERCISE, t.entryIndex, now, goal.restBetweenExercisesSec)
+            TimerState(TimerKind.REST_EXERCISE, t.entryIndex, now, d.restExercises)
         } else {
-            TimerState(TimerKind.REST_SET, t.entryIndex, now, goal.restBetweenSetsSec)
+            TimerState(TimerKind.REST_SET, t.entryIndex, now, d.restSets)
         }
         a.copy(timer = rest, pending = PendingSet(t.entryIndex, ((now - t.startedAt) / 1000).toInt()))
     }

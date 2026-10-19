@@ -71,4 +71,18 @@ class PlanBuilderTest {
         assertEquals(5, Timing.capacity(60, Goal.STRENGTH))
         assertEquals(7, Timing.capacity(60, Goal.HYPERTROPHY))
     }
+
+    @Test
+    fun customRestChangesCapacityAndStillFits() {
+        assertTrue(Timing.capacity(60, Goal.STRENGTH, 120, 90) > Timing.capacity(60, Goal.STRENGTH))
+        for (goal in Goal.entries) for (minutes in DURATIONS) for (rs in REST_SET_OPTIONS) for (re in REST_EXERCISE_OPTIONS) {
+            val cap = Timing.capacity(minutes, goal, rs, re)
+            val plan = PlanBuilder.build(2, ExerciseLibrary.all, cap).workouts
+            plan.forEach { w ->
+                val est = Timing.workoutMinutes(w.exerciseIds.map(::ex), goal, rs, re)
+                // Kad ni jedna vježba ne stane, plan ipak ima jednu (najmanje 1).
+                if (w.exerciseIds.size > 1) assertTrue(est <= minutes, "$goal $minutes min, odmor $rs/$re: $est min")
+            }
+        }
+    }
 }

@@ -22,7 +22,8 @@ fun PlanScreen(vm: AppViewModel, d: AppData) {
     ScreenColumn {
         Title("Plan – ${d.goal.label}")
         Text(
-            "${d.daysPerWeek}× tjedno · ${d.durationMinutes} min · $SETS_PER_EXERCISE × ${d.goal.repLabel} ponavljanja",
+            "${d.daysPerWeek}× tjedno · ${d.durationMinutes} min · $SETS_PER_EXERCISE × ${d.goal.repLabel} ponavljanja · " +
+                "odmor ${restLabel(d.restSets)} / ${restLabel(d.restExercises)}",
             style = MaterialTheme.typography.bodyMedium,
         )
         if (d.omitted.isNotEmpty()) {
@@ -39,7 +40,7 @@ fun PlanScreen(vm: AppViewModel, d: AppData) {
             val exercises = w.exerciseIds.mapNotNull { catalog[it] }
             BoxCard {
                 Text(
-                    w.name + " · ~${Timing.workoutMinutes(exercises, d.goal)} min" + if (i == next) "  · sljedeći" else "",
+                    w.name + " · ~${Timing.workoutMinutes(exercises, d.goal, d.restSets, d.restExercises)} min" + if (i == next) "  · sljedeći" else "",
                     style = MaterialTheme.typography.titleMedium,
                 )
                 exercises.forEach { ex ->

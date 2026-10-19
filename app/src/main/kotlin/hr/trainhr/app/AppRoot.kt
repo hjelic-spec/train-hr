@@ -63,14 +63,14 @@ fun AppRoot(vm: AppViewModel) {
     ) { padding ->
         Box(Modifier.padding(padding)) {
             when {
-                needsSetup -> SetupScreen(d, onSave = { goal, days, min, sel, custom -> vm.saveSetup(goal, days, min, sel, custom) }, onCancel = null)
+                needsSetup -> SetupScreen(d, onSave = { vm.saveSetup(it) }, onCancel = null)
                 workout != null -> WorkoutScreen(vm, d, workout)
                 editingPlan -> {
                     BackHandler { editingPlan = false }
                     SetupScreen(
                         d,
-                        onSave = { goal, days, min, sel, custom ->
-                            vm.saveSetup(goal, days, min, sel, custom)
+                        onSave = {
+                            vm.saveSetup(it)
                             editingPlan = false
                             tab = Tab.PLAN
                         },

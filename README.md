@@ -3,8 +3,9 @@
 Jednostavna Android aplikacija (hrvatski, offline, Android 14+) za praćenje treninga snage.
 
 ## Što radi
-1. **Postavke plana:** cilj (snaga 5–8 pon., odmor 3 min / hipertrofija 8–12 pon., odmor 90 s,
-   između vježbi 2 min), broj treninga tjedno (1–5), trajanje (30–90 min) i izbor vježbi po
+1. **Postavke plana:** cilj (snaga 5–8 pon. / hipertrofija 8–12 pon.), odmor između serija i
+   između vježbi (preporuka po cilju: snaga 3 min / 3 min, hipertrofija 90 s / 2 min – može se
+   promijeniti), broj treninga tjedno (1–5), trajanje (30–90 min) i izbor vježbi po
    mišićnim skupinama (noge, leđa, prsa, ramena, ruke, trup) + vlastite vježbe.
 2. **Plan:** odabrane vježbe raspoređuju se po treninzima tako da stanu u trajanje
    (procjena: 5 min zagrijavanja + serije + odmori). Ako nema mjesta, prednost imaju noge,

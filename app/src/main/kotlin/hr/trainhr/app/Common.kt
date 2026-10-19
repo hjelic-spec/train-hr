@@ -47,6 +47,13 @@ fun AppTheme(content: @Composable () -> Unit) {
     )
 }
 
+/** 90 → "1:30 min", 120 → "2 min", 45 → "45 s". */
+fun restLabel(sec: Int): String = when {
+    sec < 60 -> "$sec s"
+    sec % 60 == 0 -> "${sec / 60} min"
+    else -> "${sec / 60}:${(sec % 60).toString().padStart(2, '0')} min"
+}
+
 fun parseNumber(s: String): Double? = s.trim().replace(',', '.').toDoubleOrNull()
 
 fun formatDate(epochDay: Long): String =
