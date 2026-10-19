@@ -120,6 +120,23 @@ nav.tabs button[aria-current="page"] { color: var(--accent); box-shadow: inset 0
 .ov-row { font: inherit; display: flex; justify-content: space-between; gap: 8px; width: 100%; text-align: left; padding: 12px; border-radius: 10px;
   border: 1px solid var(--line); background: var(--surface); color: var(--fg); }
 .ov-row.cur { border-color: var(--accent); }
+.titlebar { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.gear { border: 0; background: transparent; color: var(--muted); width: 44px; height: 44px; border-radius: 22px; display: grid; place-items: center; flex: none; }
+.gear:hover { color: var(--accent); background: var(--surface-2); }
+.meter { height: 8px; border-radius: 4px; background: var(--surface-2); overflow: hidden; }
+.meter span { display: block; height: 100%; background: var(--accent); }
+.trend { font-size: 14px; font-weight: 600; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.trend.up { color: var(--work); }
+.trend.down { color: var(--danger); }
+.kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.kpis div { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 8px 4px; display: flex; flex-direction: column; align-items: center; min-width: 0; }
+.kpis b { font-family: var(--display); font-size: 22px; font-variant-numeric: tabular-nums; }
+.kpis span { font-size: 12px; color: var(--muted); }
+.seg { display: grid; grid-template-columns: 1fr 1fr; background: var(--surface-2); border-radius: 10px; padding: 3px; }
+.seg button { border: 0; background: transparent; color: var(--muted); padding: 8px; border-radius: 8px; font-weight: 600; }
+.seg button[aria-selected="true"] { background: var(--surface); color: var(--fg); box-shadow: 0 1px 2px rgb(0 0 0 / .12); }
+svg.bars { width: 100%; height: auto; display: block; }
+.ov-row.sess { align-items: center; }
 .card.active { border-color: var(--work); box-shadow: 0 0 0 2px var(--work) inset; }
 svg.chart { width: 100%; height: 90px; display: block; }
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(76px + env(safe-area-inset-bottom, 0px)); background: var(--fg); color: var(--bg);
@@ -133,9 +150,10 @@ svg.chart { width: 100%; height: 90px; display: block; }
 
 <div class="app"><main id="main"></main></div>
 <nav class="tabs" id="tabs" hidden><div class="inner">
+  <button id="tab-home" data-tab="home">Početna</button>
   <button id="tab-plan" data-tab="plan">Plan</button>
-  <button id="tab-progress" data-tab="progress">Napredak</button>
-  <button id="tab-settings" data-tab="settings">Postavke</button>
+  <button id="tab-sessions" data-tab="sessions">Treninzi</button>
+  <button id="tab-analysis" data-tab="analysis">Analiza</button>
 </div></nav>
 <div id="overlay"></div>
 
@@ -347,10 +365,10 @@ const letter = (k) => String.fromCharCode(65 + k);
 
 function emptyState() {
   return { goal: "HYPERTROPHY", daysPerWeek: 3, durationMinutes: 60, restSetsSec: null, restExercisesSec: null,
-    startDay: today(), salts: {}, selected: [], pinned: [], customExercises: [], sessions: [] };
+    startDay: today(), endDay: today() + 8 * 7 - 1, bodyWeightKg: 80, salts: {}, selected: [], pinned: [], customExercises: [], sessions: [] };
 }
 function exampleData() {
-  const d = Object.assign(emptyState(), { example: true, startDay: today() - 14,
+  const d = Object.assign(emptyState(), { example: true, startDay: today() - 14, endDay: today() - 14 + 8 * 7 - 1,
     selected: ["trap_bar_deadlift", "back_squat", "rdl_db", "lat_pulldown", "cable_row", "db_row", "bench_press", "db_bench_press",
       "db_shoulder_press", "lateral_raise", "db_curl", "triceps_pushdown", "plank", "pallof_press"],
     pinned: ["trap_bar_deadlift", "bench_press"] });
@@ -368,7 +386,7 @@ function exampleData() {
 
 let state = null;
 function load() {
-  try { const s = localStorage.getItem(STORE_KEY); if (s) { const d = JSON.parse(s); if (d.startDay == null) d.startDay = today(); d.salts = d.salts || {}; d.pinned = d.pinned || []; return d; } } catch (e) {}
+  try { const s = localStorage.getItem(STORE_KEY); if (s) { const d = JSON.parse(s); if (d.startDay == null) d.startDay = today(); d.salts = d.salts || {}; d.pinned = d.pinned || []; if (d.endDay === undefined) d.endDay = null; d.bodyWeightKg = d.bodyWeightKg || 80; return d; } } catch (e) {}
   return exampleData();
 }
 function persist() { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {} }
@@ -384,6 +402,21 @@ const dayDate = (w, k) => state.startDay + 7 * w + DAY_OFFSETS[state.daysPerWeek
 // Trening je vezan uz planirani datum, pa promjena početka ili broja dana ne miješa stare treninge.
 const sessionFor = (w, k) => { const day = dayDate(w, k); return state.sessions.find(s => s.plannedDay === day); };
 
+/** Zadnji tjedan programa (null = bez kraja). */
+const lastWeek = () => state.endDay == null ? null : weekOf(state.endDay);
+const inProgram = (w, k) => state.endDay == null || dayDate(w, k) <= state.endDay;
+const programWeeks = () => state.endDay == null ? null : lastWeek() + 1;
+/** Podignuti kilogrami: težina × ponavljanja (bez vježbi na vrijeme i bez vlastite težine; kod bučica težina jedne bučice). */
+function setVolume(ex, st) { return ex && !ex.timed && st.weightKg != null ? st.weightKg * st.reps : 0; }
+function sessionStats(sess) {
+  const c = cat(); let kgSum = 0, sets = 0;
+  sess.entries.forEach(e => { const ex = c.get(e.exerciseId); e.sets.forEach(st => { kgSum += setVolume(ex, st); sets++; }); });
+  const min = sess.durationSeconds != null ? sess.durationSeconds / 60 : 0;
+  // Procjena: 3,5 MET (2024 Adult Compendium, 02054) × tjelesna masa × sati; 1 MET ≈ 1 kcal/kg/h.
+  return { kg: Math.round(kgSum), sets, min: Math.round(min), kcal: Math.round(3.5 * state.bodyWeightKg * min / 60) };
+}
+const fmtInt = (n) => n.toLocaleString("hr-HR");
+
 function planForWeek(w) {
   const c = cat();
   const seed = (state.startDay * 1000003 + w * 7919 + (state.salts[w] || 0) * 104729 + state.daysPerWeek * 31 + state.durationMinutes) | 0;
@@ -393,15 +426,15 @@ function planForWeek(w) {
 function nextTarget() {
   const t = today();
   for (let w = Math.max(0, weekOf(t)); w < Math.max(0, weekOf(t)) + 2; w++)
-    for (let k = 0; k < state.daysPerWeek; k++) if (!sessionFor(w, k) && dayDate(w, k) >= t) return { w, k };
-  return { w: Math.max(0, weekOf(t)), k: 0 };
+    for (let k = 0; k < state.daysPerWeek; k++) if (!sessionFor(w, k) && dayDate(w, k) >= t && inProgram(w, k)) return { w, k };
+  return null;
 }
 function history(id) { return state.sessions.slice().sort((a, b) => a.epochDay - b.epochDay || a.id - b.id).map(s => { const e = s.entries.find(x => x.exerciseId === id); return e && e.sets.length ? [s.epochDay, e.sets] : null; }).filter(Boolean); }
 function rec(id) { const ex = cat().get(id); return ex ? recommend(ex, goalOf(state), history(id).map(h => h[1])) : null; }
 const describeSets = (sets, timed) => sets.map(s => (s.weightKg != null ? kg(s.weightKg) + "×" : "") + s.reps + (timed ? "s" : "")).join("  ");
 
 const fresh = new Set();
-let ui = { tab: "plan", week: null, editing: false, setup: null, active: null, toast: null, dialog: null };
+let ui = { tab: "home", settings: false, session: null, analysis: "weeks", week: null, editing: false, setup: null, active: null, toast: null, dialog: null };
 
 // --- Zvuk na kraju odmora (Web Audio; radi nakon prvog dodira) ---
 let audio = null;
@@ -433,6 +466,10 @@ function setupView() {
     <p class="muted">${SETS} serije × ${g.repMin}–${g.repMax} ponavljanja</p>
     <h2>Početak treninga</h2>
     <label class="field">Datum prvog treninga<input type="date" id="start-date" value="${toIso(s.startDay)}"></label>
+    <h2>Trajanje programa</h2>
+    ${chips("weeks", [4, 6, 8, 12, 0], s.endDay == null ? 0 : (s.endDay - s.startDay + 1) % 7 === 0 ? (s.endDay - s.startDay + 1) / 7 : -1, v => v ? v + " tjedana" : "Bez kraja")}
+    <label class="field">ili do datuma<input type="date" id="end-date" value="${s.endDay != null ? toIso(s.endDay) : ""}"></label>
+    <p class="muted">${s.endDay == null ? "Program traje dok ga ne promijenite." : s.endDay < s.startDay ? "Kraj je prije početka – odaberite kasniji datum." : `Program: ${fmtDate(s.startDay)} – ${fmtDate(s.endDay)} (${Math.ceil((s.endDay - s.startDay + 1) / 7)} tj.)`}</p>
     <h2>Broj treninga tjedno</h2>${chips("days", [1, 2, 3, 4, 5], s.days, v => v)}
     <p class="muted">Dani: ${offs} (svaki tjedan isto).</p>
     <h2>Trajanje treninga</h2>${chips("minutes", DURATIONS, s.minutes, v => v + " min")}
@@ -440,6 +477,10 @@ function setupView() {
     <h2>Odmor između vježbi</h2>${chips("restEx", REST_EX_OPTIONS, s.restEx, v => star(v, g.restEx))}
     <p class="muted">★ preporuka za ${g.label.toLowerCase()}. U ${s.minutes} min stane do <strong>${cap}</strong> vježbi po treningu (uključeno ${WARMUP_MIN} min zagrijavanja).</p>
     ${s.restSets !== g.restSets || s.restEx !== g.restEx ? `<button class="btn text" data-act="resetRest">Vrati preporučene odmore</button>` : ""}
+    <h2>Tjelesna masa</h2>
+    <div class="stepper"><button class="step" data-act="stepBw" data-d="-1" aria-label="Manje">−</button>
+      <label class="field">kg (za procjenu kalorija)<input id="bw" inputmode="decimal" value="${kg(s.bodyWeightKg)}"></label>
+      <button class="step" data-act="stepBw" data-d="1" aria-label="Više">+</button></div>
     <h2>Vježbe po mišićnim skupinama</h2>
     <p class="muted">Odaberite vježbe koje želite raditi – slobodno više nego što stane u jedan trening. Aplikacija ih svaki tjedan nanovo raspoređuje i miješa.</p>
     <p class="muted"><strong>Stalna</strong> vježba ne miješa se: dolazi svaki tjedan u ${pinnedPerWeek(s.days)} ${pinnedPerWeek(s.days) === 1 ? "trening" : "treninga"}, kako biste joj pratili napredak. Preporuka: 1–3 glavne vježbe.</p>
@@ -452,7 +493,7 @@ function setupView() {
           ${on ? `<button class="pin" data-act="pin" data-id="${e.id}" aria-pressed="${pin}">${pin ? "✓ Stalna" : "Stalna"}</button>` : ""}</div>`; }).join("")}
         <button class="btn text" data-act="addCustom" data-group="${gk}">+ Vlastita vježba</button></section>`;
     }).join("")}
-    <button class="btn block" data-act="saveSetup" ${s.selected.length ? "" : "disabled"}>Složi plan</button>
+    <button class="btn block" data-act="saveSetup" ${s.selected.length && (s.endDay == null || s.endDay >= s.startDay) ? "" : "disabled"}>Spremi i složi plan</button>
     ${state.selected.length ? `<button class="btn text" data-act="cancelSetup">Odustani</button>` : ""}`;
 }
 
@@ -463,23 +504,24 @@ function pinWarning(s, cap) {
 
 function planView() {
   const c = cat(), g = goalOf(state), t = today(), cur = Math.max(0, weekOf(t));
-  const w = ui.week ?? cur, plan = planForWeek(w), next = nextTarget();
+  const lw = lastWeek(), w = Math.min(ui.week ?? cur, lw ?? Infinity), plan = planForWeek(w), next = nextTarget() || {};
   const notStarted = state.startDay > t;
-  const anyOpen = plan.days.some((_, k) => !sessionFor(w, k));
+  const anyOpen = plan.days.some((_, k) => !sessionFor(w, k) && inProgram(w, k));
   return `
-    <h1>Plan – ${g.label}</h1>
+    ${titleBar("Plan – " + g.label)}
     ${state.example ? `<p class="preview-note">Pregled s primjerom podataka. Promjene ostaju samo u ovom pregledniku.</p>` : ""}
     <p class="muted">${state.daysPerWeek}× tjedno · ${state.durationMinutes} min · ${SETS} × ${g.repMin}–${g.repMax} pon. · odmor ${restLabel(restSets(state))} / ${restLabel(restEx(state))}</p>
     ${notStarted ? `<div class="card">Početak: <strong>${fmtDate(state.startDay)}</strong> (za ${state.startDay - t} ${state.startDay - t === 1 ? "dan" : "dana"}).</div>` : ""}
     <div class="weekbar">
       <button class="btn text" data-act="weekPrev" ${w <= 0 ? "disabled" : ""} aria-label="Prethodni tjedan">‹</button>
-      <h2>Tjedan ${w + 1}${w === cur && !notStarted ? " · ovaj tjedan" : ""}</h2>
-      <button class="btn text" data-act="weekNext" aria-label="Sljedeći tjedan">›</button>
+      <h2>Tjedan ${w + 1}${lw != null ? " od " + (lw + 1) : ""}${w === cur && !notStarted ? " · ovaj tjedan" : ""}</h2>
+      <button class="btn text" data-act="weekNext" ${lw != null && w >= lw ? "disabled" : ""} aria-label="Sljedeći tjedan">›</button>
     </div>
     <p class="muted">${fmtShort(dayDate(w, 0))} – ${fmtShort(dayDate(w, state.daysPerWeek - 1))}</p>
     ${anyOpen ? `<button class="btn secondary" data-act="reshuffle" data-w="${w}">⟳ Promiješaj neodrađene treninge</button>` : ""}
     ${plan.omitted.length ? `<div class="card warn">Ovaj tjedan ne stane: ${plan.omitted.map(e => esc(e.name)).join(", ")}. Doći će na red idući tjedan.</div>` : ""}
     ${plan.days.map((ids, k) => {
+      if (!inProgram(w, k)) return "";
       const day = dayDate(w, k), done = sessionFor(w, k), isNext = next.w === w && next.k === k;
       const status = done ? `<span class="status done">✓ Odrađeno</span>` : day === t ? `<span class="status today">Danas</span>`
         : day < t ? `<span class="status missed">Propušteno</span>` : isNext ? `<span class="status">Sljedeći</span>` : "";
@@ -608,43 +650,141 @@ function chartSvg(values) {
     ${pts.map(p => `<circle cx="${p[0]}" cy="${p[1]}" r="4" fill="var(--accent)"></circle>`).join("")}</svg>`;
 }
 
-function progressView() {
+const GEAR = `<svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.5 7.5 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.4 7.4 0 0 0-1.7-1L15 3.4h-4l-.4 2.6a7.4 7.4 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.6a7.5 7.5 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7.4 7.4 0 0 0 1.7 1l.4 2.6h4l.4-2.6a7.4 7.4 0 0 0 1.7-1l2.4 1 2-3.4-2-1.6ZM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Z" transform="translate(-1 0)"/></svg>`;
+function titleBar(text) {
+  return `<div class="titlebar"><h1>${esc(text)}</h1><button class="gear" data-act="openSettings" aria-label="Postavke">${GEAR}</button></div>`;
+}
+function statLine(st) { return `${st.min} min · ${st.sets} serija · ${fmtInt(st.kg)} kg · ≈${fmtInt(st.kcal)} kcal`; }
+const sortedSessions = () => state.sessions.slice().sort((a, b) => b.epochDay - a.epochDay || b.id - a.id);
+
+function homeView() {
+  const t = today(), c = cat(), g = goalOf(state), next = nextTarget(), cur = Math.max(0, weekOf(t)), last = sortedSessions()[0];
+  const ended = state.endDay != null && t > state.endDay;
+  const pw = programWeeks();
+  let nextCard;
+  if (next) {
+    const ids = planForWeek(next.w).days[next.k], exs = ids.map(c.get).filter(Boolean), day = dayDate(next.w, next.k);
+    nextCard = `<section class="card next"><span class="badge">${day === t ? "Danas" : "Sljedeći trening"}</span>
+      <h3>${fmtShort(day)} · Tjedan ${next.w + 1} · Trening ${letter(next.k)}</h3>
+      <p class="muted">~${Timing.workoutMinutes(exs, g, restSets(state), restEx(state))} min · ${exs.length} vježbi: ${exs.map(e => esc(e.name)).join(", ")}</p>
+      <button class="btn block" data-act="start" data-w="${next.w}" data-k="${next.k}">${day === t ? "Započni trening" : "Započni sada"}</button></section>`;
+  } else if (ended) {
+    nextCard = `<section class="card"><h3>Program je završen</h3><p class="muted">${fmtDate(state.startDay)} – ${fmtDate(state.endDay)}. Postavite novi program ili produljite postojeći.</p>
+      <button class="btn block" data-act="openSetup">Novi program</button></section>`;
+  } else nextCard = "";
+  let lastCard = `<section class="card"><h3>Posljednji trening</h3><p class="muted">Još nema odrađenih treninga.</p></section>`;
+  if (last) {
+    const st = sessionStats(last);
+    lastCard = `<section class="card"><span class="badge">Posljednji trening</span>
+      <h3>${fmtShort(last.epochDay)} · ${esc(last.workoutName)}</h3>
+      <p class="muted">${statLine(st)}</p>
+      ${last.entries.map(e => { const ex = c.get(e.exerciseId); if (!ex) return ""; const r = rec(ex.id);
+        const tag = r && r.action === "INCREASE" ? `<span class="trend up">↑ ${r.weightKg != null ? kg(r.weightKg) + " kg" : "teže"}</span>`
+          : r && r.action === "DECREASE" ? `<span class="trend down">↓ ${kg(r.weightKg)} kg</span>` : `<span class="trend">=</span>`;
+        return `<div class="ex-line"><span>${esc(ex.name)} <span class="muted set-log">${describeSets(workingSets(e.sets), ex.timed)}</span></span>${tag}</div>`; }).join("")}
+      <p class="muted">↑ povećati sljedeći put · = zadržati · ↓ smanjiti</p>
+      <button class="btn text" data-act="openSession" data-id="${last.id}">Detalji treninga</button></section>`;
+  }
+  const weekDays = Array.from({ length: state.daysPerWeek }, (_, k) => k).filter(k => inProgram(cur, k));
+  const weekDone = weekDays.filter(k => sessionFor(cur, k)).length;
+  return `${titleBar("Početna")}
+    ${state.example ? `<p class="preview-note">Pregled s primjerom podataka. Promjene ostaju samo u ovom pregledniku.</p>` : ""}
+    <section class="card"><div class="ex-line"><h3>${g.label} · ${state.daysPerWeek}× tjedno</h3><span class="muted">${state.startDay > t ? "počinje " + fmtShort(state.startDay) : pw ? `tjedan ${Math.min(cur + 1, pw)} od ${pw}` : `tjedan ${cur + 1}`}</span></div>
+      ${pw ? `<div class="meter"><span style="width:${Math.min(100, Math.max(0, (t - state.startDay + 1) / (pw * 7) * 100)).toFixed(0)}%"></span></div>
+      <p class="muted">${fmtDate(state.startDay)} – ${fmtDate(state.endDay)}</p>` : ""}
+      ${state.startDay <= t ? `<p class="muted">Ovaj tjedan: ${weekDone} od ${weekDays.length} treninga</p>` : ""}</section>
+    ${nextCard}${lastCard}`;
+}
+
+function sessionsView() {
+  if (ui.session != null) return sessionDetail(state.sessions.find(s => s.id === ui.session));
+  const list = sortedSessions();
+  return `${titleBar("Treninzi")}
+    ${list.length ? "" : `<p class="muted">Još nema odrađenih treninga. Pokrenite trening na Početnoj ili u Planu.</p>`}
+    ${list.map(s => { const st = sessionStats(s); return `<button class="ov-row sess" data-act="openSession" data-id="${s.id}">
+      <span><strong>${fmtShort(s.epochDay)}</strong> · ${esc(s.workoutName)}<br><span class="muted">${statLine(st)}</span></span><span class="muted">›</span></button>`; }).join("")}`;
+}
+
+function sessionDetail(s) {
+  if (!s) { ui.session = null; return sessionsView(); }
+  const c = cat(), st = sessionStats(s);
+  return `<button class="btn text" data-act="closeSession">‹ Treninzi</button>
+    <h1>${fmtShort(s.epochDay)} · ${esc(s.workoutName)}</h1>
+    <div class="kpis"><div><b>${st.min}</b><span>min</span></div><div><b>${st.sets}</b><span>serija</span></div><div><b>${fmtInt(st.kg)}</b><span>kg</span></div><div><b>≈${fmtInt(st.kcal)}</b><span>kcal</span></div></div>
+    ${s.entries.map(e => { const ex = c.get(e.exerciseId), vol = e.sets.reduce((n, x) => n + setVolume(ex, x), 0);
+      return `<section class="card"><div class="ex-line"><h3>${esc(ex?.name || e.exerciseId)}</h3><span class="kg">${vol ? fmtInt(Math.round(vol)) + " kg" : ""}</span></div>
+        ${e.sets.map((x, k) => `<p class="set-log">Serija ${k + 1}: ${describeSets([x], ex?.timed)}${x.workSeconds != null ? " · rad " + clock(x.workSeconds) : ""}</p>`).join("")}</section>`; }).join("")}
+    <button class="btn text danger" data-act="deleteSession" data-id="${s.id}">Obriši trening</button>`;
+}
+
+function barChart(rows) { // rows: [label, value]
+  const W = 320, H = 130, pad = 22, max = Math.max(1, ...rows.map(r => r[1])), bw = (W - 8) / rows.length;
+  return `<svg class="bars" viewBox="0 0 ${W} ${H}" role="img" aria-label="Kilogrami po tjednu">
+    ${rows.map(([l, v], i) => { const h = v / max * (H - pad - 16), x = 4 + i * bw;
+      return `<rect x="${x + bw * 0.15}" y="${H - pad - h}" width="${bw * 0.7}" height="${Math.max(h, v ? 1 : 0)}" rx="3" fill="var(--accent)"></rect>
+      <text x="${x + bw / 2}" y="${H - 6}" text-anchor="middle" fill="var(--muted)" font-size="11">${l}</text>
+      ${v ? `<text x="${x + bw / 2}" y="${H - pad - h - 4}" text-anchor="middle" fill="var(--fg)" font-size="10">${v >= 1000 ? (v / 1000).toFixed(1).replace(".", ",") + "t" : v}</text>` : ""}`; }).join("")}
+    <line x1="0" x2="${W}" y1="${H - pad}" y2="${H - pad}" stroke="var(--line)"></line></svg>`;
+}
+
+function analysisView() {
+  const mode = ui.analysis || "weeks";
+  const seg = `<div class="seg" role="tablist">
+    <button role="tab" aria-selected="${mode === "weeks"}" data-act="anMode" data-m="weeks">Tjedni</button>
+    <button role="tab" aria-selected="${mode === "exercises"}" data-act="anMode" data-m="exercises">Vježbe</button></div>`;
+  return `${titleBar("Analiza")}${seg}${state.sessions.length ? (mode === "weeks" ? weeksAnalysis() : exercisesAnalysis()) : `<p class="muted">Analiza se puni kako odrađujete treninge.</p>`}`;
+}
+
+function weeksAnalysis() {
+  const t = today(), all = state.sessions.map(sessionStats);
+  const tot = all.reduce((a, x) => ({ kg: a.kg + x.kg, kcal: a.kcal + x.kcal, min: a.min + x.min, sets: a.sets + x.sets }), { kg: 0, kcal: 0, min: 0, sets: 0 });
+  const maxW = Math.max(0, weekOf(t), ...state.sessions.map(s => weekOf(s.plannedDay ?? s.epochDay)));
+  const weeks = [];
+  for (let w = 0; w <= maxW; w++) {
+    const ss = state.sessions.filter(s => weekOf(s.plannedDay ?? s.epochDay) === w).sort((a, b) => a.epochDay - b.epochDay);
+    // Planirani dani do danas; današnji se broji tek kad je odrađen.
+    const planned = Array.from({ length: state.daysPerWeek }, (_, k) => k).filter(k => inProgram(w, k) && (dayDate(w, k) < t || sessionFor(w, k))).length;
+    const st = ss.map(sessionStats), sum = st.reduce((a, x) => ({ kg: a.kg + x.kg, kcal: a.kcal + x.kcal, min: a.min + x.min, sets: a.sets + x.sets }), { kg: 0, kcal: 0, min: 0, sets: 0 });
+    weeks.push({ w, ss, st, sum, planned });
+  }
+  const shown = weeks.slice(-8);
+  return `<div class="kpis"><div><b>${state.sessions.length}</b><span>treninga</span></div><div><b>${fmtInt(tot.kg)}</b><span>kg ukupno</span></div>
+      <div><b>${(Math.round(tot.min / 6) / 10).toLocaleString("hr-HR")}</b><span>sati</span></div><div><b>≈${fmtInt(tot.kcal)}</b><span>kcal</span></div></div>
+    <section class="card"><h3>Podignuti kilogrami po tjednu</h3>${barChart(shown.map(x => ["T" + (x.w + 1), x.sum.kg]))}</section>
+    ${weeks.slice().reverse().map(x => `<section class="card">
+      <div class="ex-line"><h3>Tjedan ${x.w + 1}</h3><span class="muted">${fmtShort(state.startDay + 7 * x.w)} – ${fmtShort(state.startDay + 7 * x.w + 6)}</span></div>
+      <p>${x.ss.length}${x.planned ? " od " + x.planned : ""} treninga · ${x.sum.sets} serija · <strong>${fmtInt(x.sum.kg)} kg</strong> · ${x.sum.min} min · ≈${fmtInt(x.sum.kcal)} kcal</p>
+      ${x.ss.map((s, i) => `<button class="ov-row" data-act="openSessionFromAnalysis" data-id="${s.id}"><span>${fmtShort(s.epochDay)} · ${esc(s.workoutName.replace(/^Tjedan \d+ · /, ""))}</span>
+        <span class="muted">${fmtInt(x.st[i].kg)} kg · ≈${x.st[i].kcal} kcal</span></button>`).join("")}
+    </section>`).join("")}
+    <p class="muted">Kilogrami = težina × ponavljanja (kod bučica težina jedne bučice; bez vježbi s vlastitom težinom i na vrijeme). Kalorije su gruba procjena: 3,5 MET × ${kg(state.bodyWeightKg)} kg × trajanje (2024 Adult Compendium of Physical Activities, šifra 02054).</p>`;
+}
+
+function exercisesAnalysis() {
   const c = cat();
   const ids = [...new Set(state.sessions.flatMap(s => s.entries.map(e => e.exerciseId)))];
-  const cards = ids.map(id => {
+  return ids.map(id => {
     const ex = c.get(id), h = history(id); if (!ex || !h.length) return "";
-    const vals = h.map(([, sets]) => { const w = sets.map(s => s.weightKg).filter(x => x != null); return w.length ? Math.max(...w) : Math.max(...sets.map(s => s.reps)); });
-    const unit = h[h.length - 1][1].some(s => s.weightKg != null) ? "kg" : ex.timed ? "s" : "pon.";
+    const vals = h.map(([, sets]) => { const w = sets.map(x => x.weightKg).filter(x => x != null); return w.length ? Math.max(...w) : Math.max(...sets.map(x => x.reps)); });
+    const unit = h[h.length - 1][1].some(x => x.weightKg != null) ? "kg" : ex.timed ? "s" : "pon.";
     const first = vals[0], now = vals[vals.length - 1], ch = first > 0 ? Math.round((now - first) / first * 100) : 0;
+    const vol = h.reduce((n, [, sets]) => n + sets.reduce((m, x) => m + setVolume(ex, x), 0), 0);
     const r = rec(id);
-    return `<section class="card"><h3>${esc(ex.name)}</h3>
+    return `<section class="card"><div class="ex-line"><h3>${esc(ex.name)}</h3><span class="muted">${h.length}× · ${vol ? fmtInt(Math.round(vol)) + " kg" : ""}</span></div>
       <p>Početak ${kg(first)} ${unit} → sada ${kg(now)} ${unit}${h.length > 1 ? ` (${ch >= 0 ? "+" : ""}${ch} %)` : ""}</p>
       ${vals.length >= 2 ? chartSvg(vals) : ""}
       ${r ? `<p class="muted">Preporuka: ${esc(r.text)}</p>` : ""}
       ${h.slice(-3).reverse().map(([d, sets]) => `<p class="muted set-log">${fmtDate(d)}: ${describeSets(workingSets(sets), ex.timed)}</p>`).join("")}
     </section>`;
   }).join("");
-  const t = today(), planned = [];
-  // Računaju se prošli planirani dani i današnji ako je već odrađen.
-  for (let w = 0; w <= weekOf(t); w++) for (let k = 0; k < state.daysPerWeek; k++) {
-    const day = dayDate(w, k); if (day < t || (day === t && sessionFor(w, k))) planned.push([w, k]);
-  }
-  const done = planned.filter(([w, k]) => sessionFor(w, k)).length;
-  return `<h1>Napredak</h1>
-    ${planned.length ? `<section class="card"><h3>Redovitost</h3><p>Odrađeno ${done} od ${planned.length} planiranih treninga (početak ${fmtDate(state.startDay)})</p></section>` : ""}
-    ${state.sessions.length ? "" : "<p>Još nema odrađenih treninga.</p>"}
-    ${cards}
-    ${state.sessions.length ? `<h2>Odrađeni treninzi</h2>` + state.sessions.slice().sort((a, b) => b.epochDay - a.epochDay).map(s => `<section class="card">
-      <h3>${fmtShort(s.epochDay)} · ${esc(s.workoutName)}${s.durationSeconds != null ? ` · ${Math.floor(s.durationSeconds / 60)} min` : ""}</h3>
-      ${s.entries.map(e => { const ex = c.get(e.exerciseId); return `<p class="muted set-log">${esc(ex?.name || e.exerciseId)}: ${describeSets(e.sets, ex?.timed)}</p>`; }).join("")}
-      <button class="btn text danger" data-act="deleteSession" data-id="${s.id}">Obriši trening</button></section>`).join("") : ""}`;
 }
 
 function settingsView() {
-  return `<h1>Postavke</h1>
-    <button class="btn secondary block" data-act="editPlan">Promijeni cilj, početak, odmore, broj treninga i vježbe</button>
+  return `<button class="btn text" data-act="closeSettings">‹ Natrag</button>
+    <h1>Postavke</h1>
+    <button class="ov-row" data-act="openSetup"><span><strong>Plan i program</strong><br><span class="muted">Cilj, početak i kraj, broj i trajanje treninga, odmori, vježbe, tjelesna masa</span></span><span class="muted">›</span></button>
     <h2>Pregled</h2>
-    <p class="muted">Ovo je web pregled Android aplikacije za brže isprobavanje. Podaci ostaju samo u ovom pregledniku. Izvoz i uvoz datoteke postoje samo u Android aplikaciji.</p>
+    <p class="muted">Ovo je web pregled Android aplikacije. Podaci ostaju samo u ovom pregledniku. Izvoz i uvoz datoteke postoje samo u Android aplikaciji.</p>
     <button class="btn secondary block" data-act="loadExample">Učitaj primjer podataka</button>
     <button class="btn secondary block danger" data-act="clearAll">Počni ispočetka (prazno)</button>`;
 }
@@ -656,13 +796,14 @@ function render() {
   let html;
   if (ui.active) html = workoutView();
   else if (needsSetup || ui.editing) { if (!ui.setup) ui.setup = setupFrom(state); html = setupView(); }
-  else html = ui.tab === "plan" ? planView() : ui.tab === "progress" ? progressView() : settingsView();
+  else if (ui.settings) html = settingsView();
+  else html = { home: homeView, plan: planView, sessions: sessionsView, analysis: analysisView }[ui.tab]();
   main.innerHTML = html;
   // Polja koja je radnja upravo promijenila (nova serija, izmjereno vrijeme) dobivaju novi predupis.
   Object.entries(vals).forEach(([id, v]) => { const el = document.getElementById(id); if (el && !fresh.has(id)) el.value = v; });
   fresh.clear();
   if (focusId) { const el = document.getElementById(focusId); if (el) el.focus(); }
-  $("#tabs").hidden = !!(ui.active || needsSetup || ui.editing);
+  $("#tabs").hidden = !!(ui.active || needsSetup || ui.editing || ui.settings);
   document.querySelectorAll("#tabs button").forEach(b => b.setAttribute("aria-current", b.dataset.tab === ui.tab ? "page" : "false"));
   $("#overlay").innerHTML = (ui.toast ? `<div class="toast" role="status">${esc(ui.toast)}</div>` : "") + (ui.dialog ? dialogHtml(ui.dialog) : "");
 }
@@ -675,7 +816,7 @@ function startRest(a, entry, setsAfter, now) {
 function setupFrom(d) {
   const g = GOALS[d.goal];
   return { goal: d.goal, days: d.daysPerWeek, minutes: d.durationMinutes, restSets: d.restSetsSec ?? g.restSets, restEx: d.restExercisesSec ?? g.restEx,
-    startDay: d.startDay, selected: d.selected.slice(), pinned: (d.pinned || []).slice(), custom: d.customExercises.slice() };
+    startDay: d.startDay, endDay: d.endDay, bodyWeightKg: d.bodyWeightKg, selected: d.selected.slice(), pinned: (d.pinned || []).slice(), custom: d.customExercises.slice() };
 }
 
 function dialogHtml(dl) {
@@ -696,18 +837,28 @@ document.addEventListener("click", (ev) => {
   const chip = ev.target.closest("[data-chip]");
   if (chip) return onChip(chip.dataset.chip, chip.dataset.value);
   const tab = ev.target.closest("#tabs [data-tab]");
-  if (tab) { ui.tab = tab.dataset.tab; ui.week = null; render(); return; }
+  if (tab) { ui.tab = tab.dataset.tab; ui.week = null; ui.session = null; window.scrollTo(0, 0); render(); return; }
   const b = ev.target.closest("[data-act]"); if (!b) return;
   const act = b.dataset.act, i = Number(b.dataset.i), a = ui.active;
   const actions = {
     saveSetup() {
       const s = ui.setup, g = GOALS[s.goal];
-      Object.assign(state, { goal: s.goal, daysPerWeek: s.days, durationMinutes: s.minutes, startDay: s.startDay,
+      const bw = parseFloat(($("#bw")?.value || "").replace(",", "."));
+      Object.assign(state, { goal: s.goal, daysPerWeek: s.days, durationMinutes: s.minutes, startDay: s.startDay, endDay: s.endDay,
+        bodyWeightKg: bw > 20 && bw < 300 ? bw : s.bodyWeightKg,
         restSetsSec: s.restSets === g.restSets ? null : s.restSets, restExercisesSec: s.restEx === g.restEx ? null : s.restEx,
         selected: s.selected, pinned: s.pinned.filter(id => s.selected.includes(id)), customExercises: s.custom });
-      persist(); ui.editing = false; ui.setup = null; ui.tab = "plan"; ui.week = null; render();
+      persist(); ui.editing = false; ui.settings = false; ui.setup = null; ui.tab = "home"; ui.week = null; render();
     },
     cancelSetup() { ui.editing = false; ui.setup = null; render(); },
+    openSettings() { ui.settings = true; window.scrollTo(0, 0); render(); },
+    closeSettings() { ui.settings = false; render(); },
+    openSetup() { ui.editing = true; ui.setup = setupFrom(state); window.scrollTo(0, 0); render(); },
+    openSession() { ui.tab = "sessions"; ui.session = Number(b.dataset.id); window.scrollTo(0, 0); render(); },
+    openSessionFromAnalysis() { ui.tab = "sessions"; ui.session = Number(b.dataset.id); window.scrollTo(0, 0); render(); },
+    closeSession() { ui.session = null; render(); },
+    anMode() { ui.analysis = b.dataset.m; render(); },
+    stepBw() { const el = $("#bw"), cur = parseFloat((el.value || "0").replace(",", ".")); el.value = kg(Math.max(30, (isNaN(cur) ? 80 : cur) + Number(b.dataset.d))); },
     resetRest() { const g = GOALS[ui.setup.goal]; ui.setup.restSets = g.restSets; ui.setup.restEx = g.restEx; render(); },
     addCustom() { ui.dialog = { type: "custom", group: b.dataset.group, kind: "DUMBBELL", timed: false }; render(); },
     cxSave() {
@@ -723,7 +874,7 @@ document.addEventListener("click", (ev) => {
     dlgNo() { ui.dialog = null; render(); },
     dlgYes() { const f = ui.dialog.onYes; ui.dialog = null; f(); render(); },
     weekPrev() { ui.week = Math.max(0, (ui.week ?? Math.max(0, weekOf(today()))) - 1); render(); },
-    weekNext() { ui.week = (ui.week ?? Math.max(0, weekOf(today()))) + 1; render(); },
+    weekNext() { const lw = lastWeek(); ui.week = Math.min((ui.week ?? Math.max(0, weekOf(today()))) + 1, lw ?? Infinity); render(); },
     reshuffle() { const w = Number(b.dataset.w); state.salts[w] = (state.salts[w] || 0) + 1; persist(); toast("Treninzi su promiješani."); },
     start() {
       const w = Number(b.dataset.w), k = Number(b.dataset.k), ids = planForWeek(w).days[k];
@@ -771,20 +922,24 @@ document.addEventListener("click", (ev) => {
       const entries = a.entries.filter(e => e.sets.length);
       if (entries.length) { state.sessions.push({ id: Date.now(), epochDay: today(), plannedDay: a.plannedDay, workoutName: a.name, entries,
         durationSeconds: Math.floor((Date.now() - a.startedAt) / 1000) }); persist(); }
-      ui.active = null; keepAwake(false); ui.tab = "plan"; toast(entries.length ? "Trening spremljen." : "Ništa nije upisano – trening nije spremljen.");
+      ui.active = null; keepAwake(false); ui.tab = "home"; toast(entries.length ? "Trening spremljen." : "Ništa nije upisano – trening nije spremljen.");
     },
     cancelWorkout() { ask("Odbaciti trening?", "Upisane serije neće biti spremljene.", "Odbaci", () => { ui.active = null; keepAwake(false); }, "Natrag"); },
-    deleteSession() { const id = Number(b.dataset.id); ask("Obrisati trening?", "Brisanje se ne može poništiti.", "Obriši", () => { state.sessions = state.sessions.filter(s => s.id !== id); persist(); }); },
-    editPlan() { ui.editing = true; ui.setup = setupFrom(state); render(); },
-    loadExample() { ask("Učitati primjer?", "Trenutni podaci u ovom pregledniku zamijenit će se primjerom.", "Učitaj", () => { state = exampleData(); persist(); ui.week = null; }); },
-    clearAll() { ask("Početi ispočetka?", "Brišu se plan i svi treninzi u ovom pregledniku.", "Obriši sve", () => { state = emptyState(); persist(); ui.setup = null; ui.week = null; }); },
+    deleteSession() { const id = Number(b.dataset.id); ask("Obrisati trening?", "Brisanje se ne može poništiti.", "Obriši", () => { state.sessions = state.sessions.filter(s => s.id !== id); persist(); ui.session = null; }); },
+
+    loadExample() { ask("Učitati primjer?", "Trenutni podaci u ovom pregledniku zamijenit će se primjerom.", "Učitaj", () => { state = exampleData(); persist(); ui.week = null; ui.settings = false; ui.tab = "home"; }); },
+    clearAll() { ask("Početi ispočetka?", "Brišu se plan i svi treninzi u ovom pregledniku.", "Obriši sve", () => { state = emptyState(); persist(); ui.setup = null; ui.week = null; ui.settings = false; ui.tab = "home"; }); },
   };
   if (actions[act]) actions[act]();
 });
 
 document.addEventListener("change", (ev) => {
   const el = ev.target;
-  if (el.id === "start-date" && ui.setup && el.value) { ui.setup.startDay = fromIso(el.value); render(); return; }
+  if (el.id === "start-date" && ui.setup && el.value) {
+    const s = ui.setup, len = s.endDay != null ? s.endDay - s.startDay : null; // zadrži trajanje programa
+    s.startDay = fromIso(el.value); if (len != null) s.endDay = s.startDay + len; render(); return;
+  }
+  if (el.id === "end-date" && ui.setup) { ui.setup.endDay = el.value ? fromIso(el.value) : null; render(); return; }
   const sel = el.dataset && el.dataset.sel;
   if (sel && ui.setup) {
     const s = ui.setup.selected;
@@ -804,6 +959,7 @@ function onChip(name, value) {
   } else if (name === "restSets") s.restSets = Number(value);
   else if (name === "restEx") s.restEx = Number(value);
   else if (name === "days") s.days = Number(value);
+  else if (name === "weeks") s.endDay = Number(value) ? s.startDay + Number(value) * 7 - 1 : null;
   else if (name === "minutes") s.minutes = Number(value);
   render();
 }
