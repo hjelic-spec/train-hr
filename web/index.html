@@ -24,6 +24,7 @@
   --work: #6fd39e; --work-bg: #163527; --rest: #f2b65a; --rest-bg: #3a2a12;
   --danger: #ff8a80; --danger-bg: #3d1a17; color-scheme: dark; }
 
+[hidden] { display: none !important; }
 html, body { height: 100%; }
 body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 17px; line-height: 1.45; }
 .app { max-width: 520px; margin: 0 auto; min-height: 100%; display: flex; flex-direction: column;
@@ -85,6 +86,15 @@ nav.tabs button[aria-current="page"] { color: var(--accent); box-shadow: inset 0
 .status.today { color: var(--rest); }
 .status.missed { color: var(--muted); }
 .card.next { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.sel-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.sel-row .check { flex: 1; min-width: 0; }
+.pin { font: inherit; font-size: 13px; font-weight: 600; border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 999px; padding: 4px 10px; white-space: nowrap; }
+.pin[aria-pressed="true"] { background: var(--work-bg); color: var(--work); border-color: var(--work); }
+.pin-tag { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--work); border: 1px solid var(--work); border-radius: 4px; padding: 0 4px; margin-left: 4px; vertical-align: 2px; }
+.stepper { display: grid; grid-template-columns: 64px 1fr 64px; gap: 8px; align-items: end; }
+.stepper .field input { text-align: center; font-size: 24px; }
+.step { font-family: var(--display); font-size: 32px; font-weight: 700; line-height: 1; height: 52px; border-radius: 10px; border: 1px solid var(--accent); background: var(--surface); color: var(--accent); }
+.step:active { background: var(--accent); color: var(--accent-fg); }
 .card.active { border-color: var(--work); box-shadow: 0 0 0 2px var(--work) inset; }
 svg.chart { width: 100%; height: 90px; display: block; }
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(76px + env(safe-area-inset-bottom, 0px)); background: var(--fg); color: var(--bg);
@@ -207,10 +217,19 @@ function shuffle(list, r) { const x = list.slice(); for (let i = x.length - 1; i
  * izmjenjuju se po danima; svaka skupina kruži kroz sve svoje vježbe; ista vježba ne dolazi dva
  * treninga zaredom ako postoji zamjena.
  */
-function weekPlan(selected, daysPerWeek, capacity, seed) {
+/** Koliko puta tjedno dolazi stalna vježba: u najmanje 2 treninga (ili u svaki, ako ih je manje). */
+const pinnedPerWeek = (days) => Math.min(days, 2);
+
+function weekPlan(selected, daysPerWeek, capacity, seed, pinnedIds = []) {
   const days = Math.min(5, Math.max(1, daysPerWeek)), cap = Math.max(1, capacity), r = rng(seed);
+  const pinSet = new Set(pinnedIds);
+  const pinned = selected.filter(e => pinSet.has(e.id)), loose = selected.filter(e => !pinSet.has(e.id));
+  // Stalne vježbe raspoređene ravnomjerno po danima, s pomakom da ne padnu sve na isti dan.
+  const pinnedDays = Array.from({ length: days }, () => []);
+  const n = pinnedPerWeek(days), base = Math.floor(r() * days);
+  pinned.forEach((e, idx) => { for (let j = 0; j < n; j++) pinnedDays[(base + idx + Math.floor(j * days / n)) % days].push(e); });
   const groups = GROUPS.map(([g]) => g).filter(g => selected.some(e => e.group === g));
-  const queues = Object.fromEntries(groups.map(g => [g, shuffle(selected.filter(e => e.group === g), r)]));
+  const queues = Object.fromEntries(groups.map(g => [g, shuffle(loose.filter(e => e.group === g), r)]));
   const cursor = Object.fromEntries(groups.map(g => [g, 0]));
   const big = groups.filter(g => BIG.has(g)), small = shuffle(groups.filter(g => !BIG.has(g)), r);
   let smallPos = 0, prevDay = new Set();
@@ -228,8 +247,9 @@ function weekPlan(selected, daysPerWeek, capacity, seed) {
       }
       return false;
     };
-    for (const g of shuffle(big, r)) if (today.length < cap) take(g);
-    for (let k = 0; k < small.length && today.length < cap; k++) take(small[(smallPos + k) % small.length]);
+    for (const e of pinnedDays[d]) if (today.length < cap && !used.has(e.id)) { used.add(e.id); today.push(e); }
+    for (const g of shuffle(big, r)) if (today.length < cap && !today.some(e => e.group === g)) take(g);
+    for (let k = 0; k < small.length && today.length < cap; k++) { const g = small[(smallPos + k) % small.length]; if (!today.some(e => e.group === g)) take(g); }
     smallPos = (smallPos + Math.max(1, cap - big.length)) % Math.max(1, small.length);
     // Preostala mjesta: skupina s najmanje vježbi ovaj tjedan (najviše 2 po skupini u treningu).
     let added = true;
@@ -242,11 +262,13 @@ function weekPlan(selected, daysPerWeek, capacity, seed) {
       }
     }
     today.forEach(e => weekCount[e.group]++);
-    const ordered = shuffle(today, r).sort((x, y) => GROUP_TIER[x.group] - GROUP_TIER[y.group]);
+    // Velike skupine prije malih; unutar iste razine stalne vježbe prve (dok ste svježi).
+    const ordered = shuffle(today, r).sort((x, y) => GROUP_TIER[x.group] - GROUP_TIER[y.group] || pinSet.has(y.id) - pinSet.has(x.id));
     out.push(ordered.map(e => e.id));
     prevDay = used;
   }
   const usedAll = new Set(out.flat());
+  // Stalne vježbe koje nisu stale (previše stalnih za trajanje) također se prijavljuju.
   return { days: out, omitted: selected.filter(e => !usedAll.has(e.id)) };
 }
 
@@ -300,12 +322,13 @@ const letter = (k) => String.fromCharCode(65 + k);
 
 function emptyState() {
   return { goal: "HYPERTROPHY", daysPerWeek: 3, durationMinutes: 60, restSetsSec: null, restExercisesSec: null,
-    startDay: today(), salts: {}, selected: [], customExercises: [], sessions: [] };
+    startDay: today(), salts: {}, selected: [], pinned: [], customExercises: [], sessions: [] };
 }
 function exampleData() {
   const d = Object.assign(emptyState(), { example: true, startDay: today() - 14,
     selected: ["trap_bar_deadlift", "back_squat", "rdl_db", "lat_pulldown", "cable_row", "db_row", "bench_press", "db_bench_press",
-      "db_shoulder_press", "lateral_raise", "db_curl", "triceps_pushdown", "plank", "pallof_press"] });
+      "db_shoulder_press", "lateral_raise", "db_curl", "triceps_pushdown", "plank", "pallof_press"],
+    pinned: ["trap_bar_deadlift", "bench_press"] });
   const mk = (w, k, entries) => { const day = d.startDay + 7 * w + DAY_OFFSETS[3][k];
     return { id: day * 1000 + k, epochDay: day, plannedDay: day, workoutName: `Tjedan ${w + 1} · Trening ${letter(k)}`, durationSeconds: 3300 + k * 120,
       entries: entries.map(([id, kgv, reps]) => ({ exerciseId: id, sets: reps.map(r => ({ weightKg: kgv, reps: r, workSeconds: 40 })) })) }; };
@@ -320,7 +343,7 @@ function exampleData() {
 
 let state = null;
 function load() {
-  try { const s = localStorage.getItem(STORE_KEY); if (s) { const d = JSON.parse(s); if (d.startDay == null) d.startDay = today(); d.salts = d.salts || {}; return d; } } catch (e) {}
+  try { const s = localStorage.getItem(STORE_KEY); if (s) { const d = JSON.parse(s); if (d.startDay == null) d.startDay = today(); d.salts = d.salts || {}; d.pinned = d.pinned || []; return d; } } catch (e) {}
   return exampleData();
 }
 function persist() { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {} }
@@ -339,7 +362,7 @@ const sessionFor = (w, k) => { const day = dayDate(w, k); return state.sessions.
 function planForWeek(w) {
   const c = cat();
   const seed = (state.startDay * 1000003 + w * 7919 + (state.salts[w] || 0) * 104729 + state.daysPerWeek * 31 + state.durationMinutes) | 0;
-  return weekPlan(state.selected.map(c.get).filter(Boolean), state.daysPerWeek, capacityOf(state), seed);
+  return weekPlan(state.selected.map(c.get).filter(Boolean), state.daysPerWeek, capacityOf(state), seed, state.pinned);
 }
 /** Sljedeći trening: današnji ako nije odrađen, inače prvi sljedeći neodrađeni. */
 function nextTarget() {
@@ -352,6 +375,7 @@ function history(id) { return state.sessions.slice().sort((a, b) => a.epochDay -
 function rec(id) { const ex = cat().get(id); return ex ? recommend(ex, goalOf(state), history(id).map(h => h[1])) : null; }
 const describeSets = (sets, timed) => sets.map(s => (s.weightKg != null ? kg(s.weightKg) + "×" : "") + s.reps + (timed ? "s" : "")).join("  ");
 
+const fresh = new Set();
 let ui = { tab: "plan", week: null, editing: false, setup: null, active: null, toast: null, dialog: null };
 
 // --- Zvuk na kraju odmora (Web Audio; radi nakon prvog dodira) ---
@@ -392,15 +416,24 @@ function setupView() {
     <p class="muted">★ preporuka za ${g.label.toLowerCase()}. U ${s.minutes} min stane do <strong>${cap}</strong> vježbi po treningu (uključeno ${WARMUP_MIN} min zagrijavanja).</p>
     ${s.restSets !== g.restSets || s.restEx !== g.restEx ? `<button class="btn text" data-act="resetRest">Vrati preporučene odmore</button>` : ""}
     <h2>Vježbe po mišićnim skupinama</h2>
-    <p class="muted">Odaberite vježbe koje želite raditi – slobodno više nego što stane u jedan trening. Aplikacija ih svaki tjedan nanovo raspoređuje i miješa, tako da se kroz tjedne izmjenjuju sve.</p>
+    <p class="muted">Odaberite vježbe koje želite raditi – slobodno više nego što stane u jedan trening. Aplikacija ih svaki tjedan nanovo raspoređuje i miješa.</p>
+    <p class="muted"><strong>Stalna</strong> vježba ne miješa se: dolazi svaki tjedan u ${pinnedPerWeek(s.days)} ${pinnedPerWeek(s.days) === 1 ? "trening" : "treninga"}, kako biste joj pratili napredak. Preporuka: 1–3 glavne vježbe.</p>
+    ${pinWarning(s, cap)}
     ${GROUPS.map(([gk, gl]) => {
       const list = c.all.filter(e => e.group === gk), n = list.filter(e => s.selected.includes(e.id)).length;
       return `<section class="card"><h3>${gl}${n ? ` (${n})` : ""}</h3>
-        ${list.map(e => `<label class="check"><input type="checkbox" id="sel-${e.id}" data-sel="${e.id}" ${s.selected.includes(e.id) ? "checked" : ""}> ${esc(e.name)}</label>`).join("")}
+        ${list.map(e => { const on = s.selected.includes(e.id), pin = s.pinned.includes(e.id);
+          return `<div class="sel-row"><label class="check"><input type="checkbox" id="sel-${e.id}" data-sel="${e.id}" ${on ? "checked" : ""}> ${esc(e.name)}</label>
+          ${on ? `<button class="pin" data-act="pin" data-id="${e.id}" aria-pressed="${pin}">${pin ? "✓ Stalna" : "Stalna"}</button>` : ""}</div>`; }).join("")}
         <button class="btn text" data-act="addCustom" data-group="${gk}">+ Vlastita vježba</button></section>`;
     }).join("")}
     <button class="btn block" data-act="saveSetup" ${s.selected.length ? "" : "disabled"}>Složi plan</button>
     ${state.selected.length ? `<button class="btn text" data-act="cancelSetup">Odustani</button>` : ""}`;
+}
+
+function pinWarning(s, cap) {
+  const perDay = Math.ceil(s.pinned.length * pinnedPerWeek(s.days) / s.days);
+  return perDay > cap ? `<div class="card warn">Previše stalnih vježbi: u trening ih treba ~${perDay}, a stane ${cap}. Smanjite broj stalnih vježbi ili produljite trening.</div>` : "";
 }
 
 function planView() {
@@ -431,7 +464,7 @@ function planView() {
         <div class="ex-line"><h3>${fmtShort(day)} · Trening ${letter(k)}</h3>${status}</div>
         ${done ? `<p class="muted">${done.durationSeconds != null ? Math.floor(done.durationSeconds / 60) + " min" : ""}</p>`
                : `<p class="muted">~${Timing.workoutMinutes(exs, g, restSets(state), restEx(state))} min · ${exs.length} vježbi</p>`}
-        ${exs.map((e, i) => { const r = done ? null : rec(e.id); return `<div class="ex-line"><span>${i + 1}. ${esc(e.name)}</span><span class="kg">${r && r.weightKg != null ? kg(r.weightKg) + " kg" : ""}</span></div>`; }).join("")}
+        ${exs.map((e, i) => { const r = done ? null : rec(e.id); return `<div class="ex-line"><span>${i + 1}. ${esc(e.name)}${state.pinned.includes(e.id) ? ` <span class="pin-tag">stalna</span>` : ""}</span><span class="kg">${r && r.weightKg != null ? kg(r.weightKg) + " kg" : ""}</span></div>`; }).join("")}
         ${done ? "" : `<button class="btn ${isNext ? "block" : "secondary"}" data-act="start" data-w="${w}" data-k="${k}">${isNext ? "Započni trening" : "Započni"}</button>`}
       </section>`;
     }).join("")}`;
@@ -458,6 +491,9 @@ function workoutView() {
       const r = rec(ex.id), h = history(ex.id), last = h[h.length - 1];
       const working = t && t.kind === "WORK" && t.entry === i, pending = a.pending && a.pending.entry === i ? a.pending : null;
       const showW = ex.kind !== "BODYWEIGHT", defW = e.sets.length ? e.sets[e.sets.length - 1].weightKg : r?.weightKg;
+      // Predupis: vrijeme izmjereno štopericom (vježbe na vrijeme), inače prošli rezultat iste serije, inače cilj.
+      const g = goalOf(state), lastSet = last ? last[1][e.sets.length] : null;
+      const defR = ex.timed && pending ? pending.workSeconds : lastSet ? lastSet.reps : ex.timed ? TIMED_MIN_SEC : g.repMax;
       return `<section class="card ${working ? "active" : ""}">
         <h3>${i + 1}. ${esc(ex.name)} <span class="muted">(${e.sets.length}/${SETS})</span></h3>
         ${r ? `<p class="muted">${esc(r.text)}</p>` : ""}
@@ -467,7 +503,11 @@ function workoutView() {
         ${pending ? `<p><strong>Upišite rezultat serije (rad ${clock(pending.workSeconds)}):</strong></p>` : ""}
         <div class="row">
           ${showW ? `<label class="field">kg<input id="w-${i}" inputmode="decimal" value="${defW != null ? kg(defW) : ""}"></label>` : ""}
-          <label class="field">${ex.timed ? "sekunde" : "ponavljanja"}<input id="r-${i}" inputmode="numeric"></label>
+        </div>
+        <div class="stepper">
+          <button class="step" data-act="stepReps" data-i="${i}" data-d="${ex.timed ? -5 : -1}" aria-label="Manje">−</button>
+          <label class="field">${ex.timed ? "sekunde" : "ponavljanja"}<input id="r-${i}" inputmode="numeric" value="${defR}"></label>
+          <button class="step" data-act="stepReps" data-i="${i}" data-d="${ex.timed ? 5 : 1}" aria-label="Više">+</button>
         </div>
         <button class="btn" data-act="saveSet" data-i="${i}">Spremi seriju</button>
         ${e.sets.length ? `<button class="btn text" data-act="undoSet" data-i="${i}">Poništi zadnju seriju</button>` : ""}
@@ -535,7 +575,9 @@ function render() {
   else if (needsSetup || ui.editing) { if (!ui.setup) ui.setup = setupFrom(state); html = setupView(); }
   else html = ui.tab === "plan" ? planView() : ui.tab === "progress" ? progressView() : settingsView();
   main.innerHTML = html;
-  Object.entries(vals).forEach(([id, v]) => { const el = document.getElementById(id); if (el) el.value = v; });
+  // Polja koja je radnja upravo promijenila (nova serija, izmjereno vrijeme) dobivaju novi predupis.
+  Object.entries(vals).forEach(([id, v]) => { const el = document.getElementById(id); if (el && !fresh.has(id)) el.value = v; });
+  fresh.clear();
   if (focusId) { const el = document.getElementById(focusId); if (el) el.focus(); }
   $("#tabs").hidden = !!(ui.active || needsSetup || ui.editing);
   document.querySelectorAll("#tabs button").forEach(b => b.setAttribute("aria-current", b.dataset.tab === ui.tab ? "page" : "false"));
@@ -545,7 +587,7 @@ function render() {
 function setupFrom(d) {
   const g = GOALS[d.goal];
   return { goal: d.goal, days: d.daysPerWeek, minutes: d.durationMinutes, restSets: d.restSetsSec ?? g.restSets, restEx: d.restExercisesSec ?? g.restEx,
-    startDay: d.startDay, selected: d.selected.slice(), custom: d.customExercises.slice() };
+    startDay: d.startDay, selected: d.selected.slice(), pinned: (d.pinned || []).slice(), custom: d.customExercises.slice() };
 }
 
 function dialogHtml(dl) {
@@ -574,7 +616,7 @@ document.addEventListener("click", (ev) => {
       const s = ui.setup, g = GOALS[s.goal];
       Object.assign(state, { goal: s.goal, daysPerWeek: s.days, durationMinutes: s.minutes, startDay: s.startDay,
         restSetsSec: s.restSets === g.restSets ? null : s.restSets, restExercisesSec: s.restEx === g.restEx ? null : s.restEx,
-        selected: s.selected, customExercises: s.custom });
+        selected: s.selected, pinned: s.pinned.filter(id => s.selected.includes(id)), customExercises: s.custom });
       persist(); ui.editing = false; ui.setup = null; ui.tab = "plan"; ui.week = null; render();
     },
     cancelSetup() { ui.editing = false; ui.setup = null; render(); },
@@ -584,6 +626,11 @@ document.addEventListener("click", (ev) => {
       const name = $("#cx-name").value.trim(); if (!name) return;
       const ex = { id: "custom_" + Date.now(), name, group: ui.dialog.group, kind: ui.dialog.kind, timed: $("#cx-timed").checked };
       ui.setup.custom.push(ex); ui.setup.selected.push(ex.id); ui.dialog = null; render();
+    },
+    pin() { const id = b.dataset.id, p = ui.setup.pinned; ui.setup.pinned = p.includes(id) ? p.filter(x => x !== id) : p.concat(id); render(); },
+    stepReps() {
+      const el = $("#r-" + i), d = Number(b.dataset.d), cur = parseInt(el.value, 10);
+      el.value = String(Math.max(1, (isNaN(cur) ? 0 : cur) + d));
     },
     dlgNo() { ui.dialog = null; render(); },
     dlgYes() { const f = ui.dialog.onYes; ui.dialog = null; f(); render(); },
@@ -600,6 +647,7 @@ document.addEventListener("click", (ev) => {
     endSet() {
       const t = a.timer, now = Date.now(), after = a.entries[t.entry].sets.length + 1;
       a.pending = { entry: t.entry, workSeconds: Math.floor((now - t.startedAt) / 1000) };
+      if (cat().get(a.entries[t.entry].exerciseId)?.timed) fresh.add("r-" + t.entry);
       a.timer = { kind: after >= SETS ? "REST_EX" : "REST_SET", entry: t.entry, startedAt: now, duration: after >= SETS ? restEx(state) : restSets(state), signalled: false };
       render();
     },
@@ -611,7 +659,7 @@ document.addEventListener("click", (ev) => {
       const work = a.pending && a.pending.entry === i ? a.pending.workSeconds : null;
       a.entries[i].sets.push({ weightKg: wEl ? w : null, reps, workSeconds: work });
       if (work != null) a.pending = null;
-      rEl.value = ""; render();
+      fresh.add("r-" + i); render();
     },
     undoSet() { a.entries[i].sets.pop(); render(); },
     finish() { ask("Završiti trening?", "Upisane serije se spremaju, a preporuke težina ažuriraju.", "Završi", () => {
@@ -635,7 +683,7 @@ document.addEventListener("change", (ev) => {
   const sel = el.dataset && el.dataset.sel;
   if (sel && ui.setup) {
     const s = ui.setup.selected;
-    if (el.checked) { if (!s.includes(sel)) s.push(sel); } else ui.setup.selected = s.filter(x => x !== sel);
+    if (el.checked) { if (!s.includes(sel)) s.push(sel); } else { ui.setup.selected = s.filter(x => x !== sel); ui.setup.pinned = ui.setup.pinned.filter(x => x !== sel); }
     render();
   }
 });
