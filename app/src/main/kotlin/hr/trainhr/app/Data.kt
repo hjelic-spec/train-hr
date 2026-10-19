@@ -3,7 +3,6 @@ package hr.trainhr.app
 import hr.trainhr.core.Exercise
 import hr.trainhr.core.Goal
 import hr.trainhr.core.SetEntry
-import hr.trainhr.core.Workout
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,25 +25,31 @@ data class AppData(
     val restSetsSec: Int? = null,
     /** Odmor između vježbi (s); null = preporuka za odabrani cilj. */
     val restExercisesSec: Int? = null,
+    /** Datum prvog treninga (epoch day); null dok plan nije postavljen. */
+    val startDay: Long? = null,
+    /** Zadnji dan programa; null = bez kraja. */
+    val endDay: Long? = null,
+    val bodyWeightKg: Double = 80.0,
+    /** Broj miješanja po tjednu (tjedan → sol za slučajni raspored). */
+    val salts: Map<Int, Int> = emptyMap(),
     /** Odabrane vježbe, redoslijedom odabira. */
     val selected: List<String> = emptyList(),
+    /** Stalne vježbe – ne miješaju se, dolaze svaki tjedan. */
+    val pinned: List<String> = emptyList(),
     val customExercises: List<Exercise> = emptyList(),
-    val plan: List<Workout> = emptyList(),
-    /** Odabrane vježbe koje nisu stale u plan zbog trajanja treninga. */
-    val omitted: List<String> = emptyList(),
     val sessions: List<Session> = emptyList(),
 )
-
-val AppData.restSets: Int get() = restSetsSec ?: goal.restBetweenSetsSec
-val AppData.restExercises: Int get() = restExercisesSec ?: goal.restBetweenExercisesSec
 
 @Serializable
 data class Session(
     val id: Long,
+    /** Dan kad je trening odrađen. */
     val epochDay: Long,
     val workoutName: String,
     val entries: List<Entry>,
     val durationSeconds: Int? = null,
+    /** Planirani dan u programu kojem trening pripada. */
+    val plannedDay: Long? = null,
 )
 
 @Serializable

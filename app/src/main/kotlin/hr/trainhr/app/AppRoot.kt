@@ -20,9 +20,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 
 private enum class Tab(val label: String, val icon: String) {
-    PLAN("Plan", "🏋"),
-    PROGRESS("Napredak", "📈"),
-    SETTINGS("Postavke", "⚙"),
+    HOME("Početna", "⌂"),
+    PLAN("Plan", "▦"),
+    SESSIONS("Treninzi", "≡"),
+    ANALYSIS("Analiza", "▲"),
 }
 
 @Composable
@@ -31,28 +32,28 @@ fun AppRoot(vm: AppViewModel) {
     val active by vm.active.collectAsState()
     val message by vm.message.collectAsState()
     val snackbar = remember { SnackbarHostState() }
-    var tab by rememberSaveable { mutableStateOf(Tab.PLAN) }
-    var editingPlan by rememberSaveable { mutableStateOf(false) }
+    var tab by rememberSaveable { mutableStateOf(Tab.HOME) }
+    var settings by rememberSaveable { mutableStateOf(false) }
+    var editing by rememberSaveable { mutableStateOf(false) }
+    var openSession by rememberSaveable { mutableStateOf<Long?>(null) }
 
     LaunchedEffect(message) {
-        message?.let {
-            snackbar.showSnackbar(it)
-            vm.consumeMessage()
-        }
+        message?.let { snackbar.showSnackbar(it); vm.consumeMessage() }
     }
 
-    val needsSetup = d.plan.isEmpty()
+    val needsSetup = d.selected.isEmpty() || d.startDay == null
     val workout = active
+    val showTabs = !needsSetup && workout == null && !editing && !settings
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
-            if (!needsSetup && workout == null && !editingPlan) {
+            if (showTabs) {
                 NavigationBar {
                     Tab.entries.forEach { t ->
                         NavigationBarItem(
                             selected = tab == t,
-                            onClick = { tab = t },
+                            onClick = { tab = t; openSession = null },
                             icon = { Text(t.icon) },
                             label = { Text(t.label) },
                         )
@@ -62,25 +63,25 @@ fun AppRoot(vm: AppViewModel) {
         },
     ) { padding ->
         Box(Modifier.padding(padding)) {
+            val openSettings = { settings = true }
             when {
-                needsSetup -> SetupScreen(d, onSave = { vm.saveSetup(it) }, onCancel = null)
                 workout != null -> WorkoutScreen(vm, d, workout)
-                editingPlan -> {
-                    BackHandler { editingPlan = false }
+                needsSetup || editing -> {
+                    if (editing) BackHandler { editing = false }
                     SetupScreen(
                         d,
-                        onSave = {
-                            vm.saveSetup(it)
-                            editingPlan = false
-                            tab = Tab.PLAN
-                        },
-                        onCancel = { editingPlan = false },
+                        onSave = { vm.saveSetup(it); editing = false; settings = false; tab = Tab.HOME },
+                        onCancel = if (needsSetup) null else ({ editing = false }),
                     )
                 }
+                settings -> SettingsScreen(vm, onBack = { settings = false }, onEditPlan = { editing = true })
                 else -> when (tab) {
-                    Tab.PLAN -> PlanScreen(vm, d)
-                    Tab.PROGRESS -> ProgressScreen(vm, d)
-                    Tab.SETTINGS -> SettingsScreen(vm, onEditPlan = { editingPlan = true })
+                    Tab.HOME -> HomeScreen(vm, d, openSettings,
+                        onOpenSession = { openSession = it; tab = Tab.SESSIONS },
+                        onNewProgram = { editing = true })
+                    Tab.PLAN -> PlanScreen(vm, d, openSettings)
+                    Tab.SESSIONS -> SessionsScreen(vm, d, openSession, { openSession = it }, openSettings)
+                    Tab.ANALYSIS -> AnalysisScreen(d, { openSession = it; tab = Tab.SESSIONS }, openSettings)
                 }
             }
         }

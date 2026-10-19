@@ -29,6 +29,8 @@ data class Exercise(
     val kind: LoadKind,
     /** Bilježi se u sekundama (plank, nošenje) umjesto ponavljanja. */
     val timed: Boolean = false,
+    /** Samo za vlastite vježbe s bučicama: bučica u svakoj ruci (volumen se računa dvostruko). */
+    val pair: Boolean? = null,
 )
 
 /**
@@ -58,5 +60,4 @@ data class SetEntry(
     val workSeconds: Int? = null,
 )
 
-@Serializable
-data class Workout(val name: String, val exerciseIds: List<String>)
+
