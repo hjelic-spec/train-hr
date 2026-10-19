@@ -4,7 +4,15 @@ Android aplikacija za personalizirani trening snage za osobe 50+, rad u teretani
 ograničenim brojem sprava (bučice, trap bar, …), progresivno opterećenje, ciljevi,
 analiza napretka i prilagodba sportu (veteransko veslanje, trčanje, biciklizam, opće).
 
-> Status: **NACRT v3 — uključene odluke korisnika, čeka konačnu potvrdu.**
+> Status: **v4 — plan potvrđen ("kreni"), faza 0–1 u izradi.**
+>
+> Dopune (zadnja potvrda): stalak za čučanj postoji; test obavezno uključuje **pregib bučicama
+> (biceps)** i **trap bar mrtvo dizanje**.
+>
+> Tehnička odstupanja od prvotnog plana (radi jednostavnosti i pouzdanosti):
+> - umjesto Room baze podaci se spremaju u jednu JSON datoteku na uređaju (količina podataka je
+>   mala – nekoliko tisuća serija godišnje), što izvoz/uvoz čini trivijalnim;
+> - bez Hilta i navigacijske biblioteke – manje ovisnosti; grafovi (Vico) dolaze u fazi 2.
 
 ## 0. Donesene odluke (19. 10. 2026.)
 
