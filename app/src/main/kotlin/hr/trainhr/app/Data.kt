@@ -1,7 +1,7 @@
 package hr.trainhr.app
 
 import hr.trainhr.core.Exercise
-import hr.trainhr.core.RepRange
+import hr.trainhr.core.Goal
 import hr.trainhr.core.SetEntry
 import hr.trainhr.core.Workout
 import kotlinx.coroutines.Dispatchers
@@ -19,12 +19,15 @@ import java.io.OutputStream
 
 @Serializable
 data class AppData(
+    val goal: Goal = Goal.HYPERTROPHY,
     val daysPerWeek: Int = 3,
-    val repRange: RepRange = RepRange.R10_15,
+    val durationMinutes: Int = 60,
     /** Odabrane vježbe, redoslijedom odabira. */
     val selected: List<String> = emptyList(),
     val customExercises: List<Exercise> = emptyList(),
     val plan: List<Workout> = emptyList(),
+    /** Odabrane vježbe koje nisu stale u plan zbog trajanja treninga. */
+    val omitted: List<String> = emptyList(),
     val sessions: List<Session> = emptyList(),
 )
 
@@ -34,6 +37,7 @@ data class Session(
     val epochDay: Long,
     val workoutName: String,
     val entries: List<Entry>,
+    val durationSeconds: Int? = null,
 )
 
 @Serializable

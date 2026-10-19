@@ -3,12 +3,16 @@
 Jednostavna Android aplikacija (hrvatski, offline, Android 14+) za praćenje treninga snage.
 
 ## Što radi
-1. **Postavke plana:** broj treninga tjedno (1–5), raspon ponavljanja (6–10, 8–12, 10–15)
-   i izbor vježbi po mišićnim skupinama (noge, leđa, prsa, ramena, ruke, trup) + vlastite vježbe.
-2. **Plan:** aplikacija raspoređuje odabrane vježbe po treninzima – svaka odabrana mišićna
-   skupina dolazi u svakom treningu, a više vježbi iste skupine se izmjenjuje.
-3. **Trening:** upis serija (kg + ponavljanja ili sekunde), uz prikaz prošlog rezultata.
-4. **Preporuka težine** (3 serije u odabranom rasponu):
+1. **Postavke plana:** cilj (snaga 5–8 pon., odmor 3 min / hipertrofija 8–12 pon., odmor 90 s,
+   između vježbi 2 min), broj treninga tjedno (1–5), trajanje (30–90 min) i izbor vježbi po
+   mišićnim skupinama (noge, leđa, prsa, ramena, ruke, trup) + vlastite vježbe.
+2. **Plan:** odabrane vježbe raspoređuju se po treninzima tako da stanu u trajanje
+   (procjena: 5 min zagrijavanja + serije + odmori). Ako nema mjesta, prednost imaju noge,
+   leđa i prsa, a ostale skupine se izmjenjuju; vježbe koje ne stanu prikazuju se kao upozorenje.
+3. **Trening sa štopericom:** „Počni seriju“ mjeri rad, „Kraj serije“ pokreće odbrojavanje
+   odmora između serija ili između vježbi (vibracija i zvuk na kraju), ukupno vrijeme treninga.
+   Upis serija (kg + ponavljanja ili sekunde), uz prikaz prošlog rezultata.
+4. **Preporuka težine** (3 serije u rasponu cilja):
    - sve serije na gornjoj granici → povećaj (bučice +2 kg, šipka/trap bar +2,5 kg, mašina +5 kg),
    - dva treninga zaredom ispod donje granice → smanji za isti korak,
    - inače zadrži. Lakše serije za zagrijavanje se ne računaju.

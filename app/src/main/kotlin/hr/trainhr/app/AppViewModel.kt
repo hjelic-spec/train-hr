@@ -7,18 +7,34 @@ import androidx.lifecycle.viewModelScope
 import hr.trainhr.core.Advisor
 import hr.trainhr.core.Catalog
 import hr.trainhr.core.Exercise
+import hr.trainhr.core.Goal
 import hr.trainhr.core.PlanBuilder
 import hr.trainhr.core.Recommendation
-import hr.trainhr.core.RepRange
+import hr.trainhr.core.SETS_PER_EXERCISE
 import hr.trainhr.core.SetEntry
+import hr.trainhr.core.Timing
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
+enum class TimerKind { WORK, REST_SET, REST_EXERCISE }
+
+/** Štoperica: rad mjeri vrijeme od početka; odmor odbrojava [durationSec]. */
+data class TimerState(val kind: TimerKind, val entryIndex: Int, val startedAt: Long, val durationSec: Int = 0)
+
+/** Završena serija čije trajanje je izmjereno, a ponavljanja još nisu upisana. */
+data class PendingSet(val entryIndex: Int, val workSeconds: Int)
+
 /** Trening u tijeku (samo u memoriji dok se ne završi). */
-data class ActiveWorkout(val name: String, val entries: List<Entry>)
+data class ActiveWorkout(
+    val name: String,
+    val entries: List<Entry>,
+    val startedAt: Long,
+    val timer: TimerState? = null,
+    val pending: PendingSet? = null,
+)
 
 class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val repo = Repository(app.filesDir)
@@ -40,10 +56,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { repo.update(transform) }
     }
 
-    fun saveSetup(days: Int, range: RepRange, selected: List<String>, custom: List<Exercise>) = save { d ->
+    fun saveSetup(goal: Goal, days: Int, minutes: Int, selected: List<String>, custom: List<Exercise>) = save { d ->
         val catalog = Catalog(custom)
-        val plan = PlanBuilder.build(days, selected.mapNotNull { catalog[it] })
-        d.copy(daysPerWeek = days, repRange = range, selected = selected, customExercises = custom, plan = plan)
+        val result = PlanBuilder.build(days, selected.mapNotNull { catalog[it] }, Timing.capacity(minutes, goal))
+        d.copy(
+            goal = goal, daysPerWeek = days, durationMinutes = minutes, selected = selected,
+            customExercises = custom, plan = result.workouts, omitted = result.omitted.map { it.id },
+        )
     }
 
     /** Povijest serija vježbe po treninzima, kronološki. */
@@ -54,7 +73,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun recommendation(d: AppData, exerciseId: String): Recommendation? {
         val ex = catalog(d)[exerciseId] ?: return null
-        return Advisor.recommend(ex, d.repRange, history(d, exerciseId).map { it.second })
+        return Advisor.recommend(ex, d.goal, history(d, exerciseId).map { it.second })
     }
 
     fun nextWorkoutIndex(d: AppData): Int {
@@ -63,18 +82,49 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         return if (i < 0 || d.plan.isEmpty()) 0 else (i + 1) % d.plan.size
     }
 
+    // --- Trening i štoperica ---
+
     fun startWorkout(index: Int) {
         val w = data.value.plan.getOrNull(index) ?: return
-        _active.value = ActiveWorkout(w.name, w.exerciseIds.map { Entry(it, emptyList()) })
+        _active.value = ActiveWorkout(w.name, w.exerciseIds.map { Entry(it, emptyList()) }, System.currentTimeMillis())
     }
 
-    fun addSet(entryIndex: Int, set: SetEntry) = editEntry(entryIndex) { it + set }
+    private fun update(f: (ActiveWorkout) -> ActiveWorkout) {
+        _active.value = _active.value?.let(f)
+    }
 
-    fun removeLastSet(entryIndex: Int) = editEntry(entryIndex) { it.dropLast(1) }
+    fun startSet(entryIndex: Int) = update {
+        it.copy(timer = TimerState(TimerKind.WORK, entryIndex, System.currentTimeMillis()), pending = null)
+    }
 
-    private fun editEntry(i: Int, f: (List<SetEntry>) -> List<SetEntry>) {
-        val a = _active.value ?: return
-        _active.value = a.copy(entries = a.entries.mapIndexed { j, e -> if (j == i) e.copy(sets = f(e.sets)) else e })
+    /** Kraj serije: zaustavlja rad i odmah pokreće odmor (između serija ili između vježbi). */
+    fun endSet() = update { a ->
+        val t = a.timer ?: return@update a
+        if (t.kind != TimerKind.WORK) return@update a
+        val now = System.currentTimeMillis()
+        val goal = data.value.goal
+        val setsAfter = a.entries[t.entryIndex].sets.size + 1
+        val rest = if (setsAfter >= SETS_PER_EXERCISE) {
+            TimerState(TimerKind.REST_EXERCISE, t.entryIndex, now, goal.restBetweenExercisesSec)
+        } else {
+            TimerState(TimerKind.REST_SET, t.entryIndex, now, goal.restBetweenSetsSec)
+        }
+        a.copy(timer = rest, pending = PendingSet(t.entryIndex, ((now - t.startedAt) / 1000).toInt()))
+    }
+
+    fun skipRest() = update { a -> if (a.timer?.kind == TimerKind.WORK) a else a.copy(timer = null) }
+
+    fun addSet(entryIndex: Int, weightKg: Double?, reps: Int) = update { a ->
+        val work = a.pending?.takeIf { it.entryIndex == entryIndex }?.workSeconds
+        val set = SetEntry(weightKg, reps, work)
+        a.copy(
+            entries = a.entries.mapIndexed { j, e -> if (j == entryIndex) e.copy(sets = e.sets + set) else e },
+            pending = if (work != null) null else a.pending,
+        )
+    }
+
+    fun removeLastSet(entryIndex: Int) = update { a ->
+        a.copy(entries = a.entries.mapIndexed { j, e -> if (j == entryIndex) e.copy(sets = e.sets.dropLast(1)) else e })
     }
 
     fun cancelWorkout() {
@@ -86,13 +136,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         _active.value = null
         val entries = a.entries.filter { it.sets.isNotEmpty() }
         if (entries.isEmpty()) return
+        val duration = ((System.currentTimeMillis() - a.startedAt) / 1000).toInt()
         save { d ->
-            d.copy(sessions = d.sessions + Session(System.currentTimeMillis(), LocalDate.now().toEpochDay(), a.name, entries))
+            d.copy(sessions = d.sessions + Session(System.currentTimeMillis(), LocalDate.now().toEpochDay(), a.name, entries, duration))
         }
         _message.value = "Trening spremljen."
     }
 
     fun deleteSession(id: Long) = save { d -> d.copy(sessions = d.sessions.filterNot { it.id == id }) }
+
+    // --- Sigurnosna kopija ---
 
     fun export(uri: Uri) {
         viewModelScope.launch {

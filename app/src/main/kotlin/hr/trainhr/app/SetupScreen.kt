@@ -27,12 +27,16 @@ import hr.trainhr.core.Catalog
 import hr.trainhr.core.Exercise
 import hr.trainhr.core.LoadKind
 import hr.trainhr.core.MuscleGroup
-import hr.trainhr.core.RepRange
+import hr.trainhr.core.DURATIONS
+import hr.trainhr.core.Goal
+import hr.trainhr.core.SETS_PER_EXERCISE
+import hr.trainhr.core.Timing
 
 @Composable
-fun SetupScreen(d: AppData, onSave: (Int, RepRange, List<String>, List<Exercise>) -> Unit, onCancel: (() -> Unit)?) {
+fun SetupScreen(d: AppData, onSave: (Goal, Int, Int, List<String>, List<Exercise>) -> Unit, onCancel: (() -> Unit)?) {
+    var goal by remember { mutableStateOf(d.goal) }
     var days by remember { mutableStateOf(d.daysPerWeek) }
-    var range by remember { mutableStateOf(d.repRange) }
+    var minutes by remember { mutableStateOf(d.durationMinutes) }
     val selected = remember { mutableStateListOf<String>().apply { addAll(d.selected) } }
     val custom = remember { mutableStateListOf<Exercise>().apply { addAll(d.customExercises) } }
     var addingTo by remember { mutableStateOf<MuscleGroup?>(null) }
@@ -40,11 +44,22 @@ fun SetupScreen(d: AppData, onSave: (Int, RepRange, List<String>, List<Exercise>
 
     ScreenColumn {
         Title("Postavke plana")
+        Section("Cilj")
+        Chips(Goal.entries, goal, { it.label }) { goal = it }
+        Text(
+            "$SETS_PER_EXERCISE serije × ${goal.repLabel} ponavljanja · odmor između serija ${goal.restBetweenSetsSec} s, " +
+                "između vježbi ${goal.restBetweenExercisesSec} s",
+            style = MaterialTheme.typography.bodyMedium,
+        )
         Section("Broj treninga tjedno")
         Chips((1..5).toList(), days, { "$it" }) { days = it }
-        Section("Ponavljanja po seriji")
-        Chips(RepRange.entries, range, { it.label }) { range = it }
-        Text("Svaka vježba: 3 serije u odabranom rasponu ponavljanja.", style = MaterialTheme.typography.bodyMedium)
+        Section("Trajanje treninga")
+        Chips(DURATIONS, minutes, { "$it min" }) { minutes = it }
+        val capacity = Timing.capacity(minutes, goal)
+        Text(
+            "U $minutes min stane do $capacity vježbi po treningu (uključeno 5 min zagrijavanja).",
+            style = MaterialTheme.typography.bodyMedium,
+        )
 
         Section("Vježbe po mišićnim skupinama")
         Text("Odaberite vježbe koje želite raditi. Aplikacija ih raspoređuje po treninzima.", style = MaterialTheme.typography.bodyMedium)
@@ -67,7 +82,7 @@ fun SetupScreen(d: AppData, onSave: (Int, RepRange, List<String>, List<Exercise>
             }
         }
         Button(
-            onClick = { onSave(days, range, selected.toList(), custom.toList()) },
+            onClick = { onSave(goal, days, minutes, selected.toList(), custom.toList()) },
             enabled = selected.isNotEmpty(),
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
         ) { Text("Složi plan") }

@@ -64,7 +64,10 @@ fun ProgressScreen(vm: AppViewModel, d: AppData) {
             Section("Odrađeni treninzi")
             d.sessions.asReversed().forEach { s ->
                 BoxCard {
-                    Text("${formatDate(s.epochDay)} · ${s.workoutName}", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "${formatDate(s.epochDay)} · ${s.workoutName}" + (s.durationSeconds?.let { " · ${it / 60} min" } ?: ""),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
                     s.entries.forEach { e ->
                         val ex = catalog[e.exerciseId]
                         Text("${ex?.name ?: e.exerciseId}: ${describeSets(e.sets, ex?.timed == true)}", style = MaterialTheme.typography.bodyMedium)

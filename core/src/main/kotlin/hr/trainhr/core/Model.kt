@@ -31,21 +31,32 @@ data class Exercise(
     val timed: Boolean = false,
 )
 
+/**
+ * Cilj treninga. Rasponi i odmori su zadane vrijednosti aplikacije, oslonjene na ACSM (2009):
+ * hipertrofija ~8–12 RM uz 1–2 min odmora; snaga – teže serije s malo ponavljanja i duljim odmorom.
+ * Za 50+ snaga je ograničena na najmanje 5 ponavljanja.
+ */
 @Serializable
-enum class RepRange(val min: Int, val max: Int) {
-    R6_10(6, 10),
-    R8_12(8, 12),
-    R10_15(10, 15);
+enum class Goal(
+    val label: String,
+    val repMin: Int,
+    val repMax: Int,
+    val restBetweenSetsSec: Int,
+    val restBetweenExercisesSec: Int,
+) {
+    STRENGTH("Snaga", 5, 8, 180, 180),
+    HYPERTROPHY("Hipertrofija", 8, 12, 90, 120);
 
-    val label: String get() = "$min–$max"
+    val repLabel: String get() = "$repMin–$repMax"
 }
 
-/** Za vježbe na vrijeme raspon je u sekundama. */
-const val TIMED_MIN_SEC = 20
-const val TIMED_MAX_SEC = 45
-
 @Serializable
-data class SetEntry(val weightKg: Double?, val reps: Int)
+data class SetEntry(
+    val weightKg: Double?,
+    val reps: Int,
+    /** Trajanje serije (štoperica), ako je mjereno. */
+    val workSeconds: Int? = null,
+)
 
 @Serializable
 data class Workout(val name: String, val exerciseIds: List<String>)

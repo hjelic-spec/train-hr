@@ -19,20 +19,19 @@ data class Recommendation(
  */
 object Advisor {
 
-    const val TARGET_SETS = 3
-
-    fun recommend(exercise: Exercise, range: RepRange, history: List<List<SetEntry>>): Recommendation {
+    
+    fun recommend(exercise: Exercise, goal: Goal, history: List<List<SetEntry>>): Recommendation {
         val sessions = history.filter { it.isNotEmpty() }
-        val min = if (exercise.timed) TIMED_MIN_SEC else range.min
-        val max = if (exercise.timed) TIMED_MAX_SEC else range.max
+        val min = if (exercise.timed) TIMED_MIN_SEC else goal.repMin
+        val max = if (exercise.timed) TIMED_MAX_SEC else goal.repMax
         val unit = if (exercise.timed) "s" else "ponavljanja"
         val last = sessions.lastOrNull()
             ?: return Recommendation(Action.START, null,
-                "Prvi put: izaberite težinu s kojom možete $TARGET_SETS serije po $min–$max $unit uz dobru tehniku.")
+                "Prvi put: izaberite težinu s kojom možete $SETS_PER_EXERCISE serije po $min–$max $unit uz dobru tehniku.")
 
         val weight = last.mapNotNull { it.weightKg }.maxOrNull()
         val working = workingSets(last)
-        val allTop = working.size >= TARGET_SETS && working.all { it.reps >= max }
+        val allTop = working.size >= SETS_PER_EXERCISE && working.all { it.reps >= max }
         val below = working.any { it.reps < min }
         val prevBelow = sessions.getOrNull(sessions.size - 2)?.let { s -> workingSets(s).any { it.reps < min } } == true
         val step = exercise.kind.stepKg
